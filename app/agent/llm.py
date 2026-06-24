@@ -21,6 +21,8 @@ contains the prior-answer text or verify the rubric via monkeypatching.
 
 from __future__ import annotations
 
+import json
+
 import anthropic
 
 # Pinned model. A current, capable tool-use- and vision-capable Claude model.
@@ -136,73 +138,110 @@ def ask_question(
     return "".join(block.text for block in message.content if block.type == "text")
 
 
+def _structured(system: str, user: str, schema: dict) -> dict | None:
+    """Ask Claude to read a freeform answer and return a value matching `schema`.
+
+    Understanding messy human phrasing is the model's job — so intent parsing
+    runs through the LLM with a strict JSON schema, which guarantees the shape of
+    what comes back. Returns the parsed object, or None if the call fails (the
+    caller then uses an offline heuristic so tests and no-key runs still work)."""
+    try:
+        message = get_client().messages.create(
+            model=MODEL,
+            max_tokens=100,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            output_config={"format": {"type": "json_schema", "schema": schema}},
+        )
+        text = "".join(b.text for b in message.content if b.type == "text")
+        return json.loads(text)
+    except Exception:
+        return None
+
+
 def parse_filing_status(user_text: str) -> str | None:
     """Parse a freeform filing-status answer into "single" or "mfj".
 
-    Returns None when the answer is unrecognisable.  Uses simple pattern
-    matching first; falls back to LLM only when ambiguous.  Tests monkeypatch
-    this to avoid API calls.
+    The LLM does the understanding (it handles "me and my spouse", "just me",
+    "we file together" — phrasings no keyword list covers); a tiny keyword
+    heuristic is the offline fallback. Returns None when truly unrecognisable.
+    Tests monkeypatch this to avoid API calls.
     """
-    normalised = user_text.lower().strip()
+    parsed = _structured(
+        system=(
+            "Read the user's answer about how they file their taxes and classify "
+            "it. 'single' covers single/unmarried/head-of-household-style answers; "
+            "'mfj' covers married-filing-jointly answers (married, with a spouse, "
+            "filing together). Use 'unknown' only if the answer truly doesn't say."
+        ),
+        user=f"Their answer: {user_text!r}",
+        schema={
+            "type": "object",
+            "properties": {"status": {"type": "string", "enum": ["single", "mfj", "unknown"]}},
+            "required": ["status"],
+            "additionalProperties": False,
+        },
+    )
+    if parsed and parsed.get("status") in ("single", "mfj"):
+        return parsed["status"]
+    if parsed and parsed.get("status") == "unknown":
+        return None
 
-    # Fast path: obvious keywords
-    if any(w in normalised for w in ("single", "alone", "unmarried", "individual")):
+    # Offline fallback (no API / call failed): obvious keywords only.
+    lower = user_text.lower().strip()
+    if any(w in lower for w in ("single", "unmarried", "just me", "alone")):
         return "single"
-    if any(w in normalised for w in ("married", "joint", "mfj", "jointly", "spouse", "together")):
+    if any(w in lower for w in ("married", "joint", "mfj", "spouse", "together", "we ")):
         return "mfj"
-
-    # LLM fallback for ambiguous phrasing
-    try:
-        client = get_client()
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=20,
-            system=(
-                "You extract a filing status from a user's freeform answer. "
-                "Reply with exactly one word: 'single', 'mfj', or 'unknown'."
-            ),
-            messages=[
-                {"role": "user", "content": f"Filing status answer: {user_text!r}"}
-            ],
-        )
-        result = "".join(b.text for b in message.content if b.type == "text").strip().lower()
-        if "single" in result:
-            return "single"
-        if "mfj" in result:
-            return "mfj"
-    except Exception:
-        pass
     return None
 
 
 def parse_dependents(user_text: str) -> int | None:
     """Parse a freeform dependent-count answer into a non-negative int.
 
-    Returns None when the answer cannot be interpreted as an integer.  Tests
-    monkeypatch this to avoid API calls.
+    The LLM does the understanding (it handles "just my two", "none of my own",
+    "three little ones"); a digit/keyword heuristic is the offline fallback.
+    Returns None when no count can be determined. Tests monkeypatch this.
     """
+    parsed = _structured(
+        system=(
+            "Read the user's answer about how many qualifying children / "
+            "dependents they have and return the count as a non-negative integer. "
+            "Answers like 'none', 'no kids', or 'just me' mean 0. If the answer "
+            "doesn't give a number, set count to -1."
+        ),
+        user=f"Their answer: {user_text!r}",
+        schema={
+            "type": "object",
+            "properties": {"count": {"type": "integer"}},
+            "required": ["count"],
+            "additionalProperties": False,
+        },
+    )
+    if parsed is not None:
+        count = parsed.get("count")
+        if isinstance(count, int) and count >= 0:
+            return count
+        if count == -1:
+            return None
+
+    # Offline fallback (no API / call failed). A digit wins first; then worded
+    # zeros (checked before "one" so "none" isn't mis-read); then small words.
     import re
 
-    normalised = user_text.strip()
-
-    # Fast path: zero words
-    if normalised.lower() in ("none", "no", "zero", "nope", "0", "no dependents", "no children"):
-        return 0
-
-    # Look for a digit string
-    digits = re.search(r"\b(\d+)\b", normalised)
+    lower = user_text.lower().strip()
+    digits = re.search(r"\b(\d+)\b", user_text)
     if digits:
         return int(digits.group(1))
-
-    # Word numbers (common small values)
-    word_map = {
-        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    }
+    if any(w in lower for w in ("none", "zero", "no kid", "no children", "no dependent")):
+        return 0
+    if lower in ("no", "nope", "nah"):
+        return 0
+    word_map = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
     for word, value in word_map.items():
-        if word in normalised.lower():
+        if re.search(rf"\b{word}\b", lower):
             return value
-
     return None
 
 

@@ -235,81 +235,74 @@ async def message(request: Request) -> StreamingResponse:
     # Append the user's message to history
     state.messages.append({"role": "user", "content": user_text})
 
+    # Advance the conversation SYNCHRONOUSLY, before building the response, so
+    # the session mutations (parsed answers, the question counter, the phase)
+    # are finalized in `state` when the cookie is written. Doing this work
+    # inside the streaming generator would run it lazily, after the cookie had
+    # already been serialized from the un-mutated state — losing every answer.
+    emitter = ObservationEmitter()
+    emitter.question_count = state.questions_asked
+
+    graph_state: dict = {
+        "messages": [{"role": m["role"], "content": m["content"]} for m in state.messages],
+        "w2_source": state.w2_source,
+        "w2_data": state.w2_data,
+        "answers": dict(state.answers),
+        "questions_asked": state.questions_asked,
+        "phase": state.phase,
+        "emitter": emitter,
+        "now": time.time,
+    }
+
+    error_summary: str | None = None
+    node_result: dict = {}
+    try:
+        # Guardrail check — code-only, no LLM, outside the model's control.
+        classification = llm.classify_user_turn(user_text)
+        if classification in ("off_task", "advice"):
+            node_result = guardrail_node(graph_state)
+        else:
+            node_result = collect_node(graph_state)
+            # If collect moved to computing, run compute in the same turn.
+            if node_result.get("phase") == "computing":
+                graph_state.update(node_result)
+                node_result = compute_node(graph_state)
+    except Exception as exc:  # surface as a typed SSE event, never a 500
+        error_summary = f"Something went wrong: {exc}"
+
+    # Pull the assistant's reply and fold the node result into the session.
+    assistant_text = ""
+    for msg in node_result.get("messages") or []:
+        content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", "")
+        if role == "assistant" and content:
+            assistant_text = content
+
+    if "answers" in node_result:
+        state.answers = node_result["answers"]
+    if "questions_asked" in node_result:
+        state.questions_asked = node_result["questions_asked"]
+    if "phase" in node_result:
+        state.phase = node_result["phase"]
+    if assistant_text:
+        state.messages.append({"role": "assistant", "content": assistant_text})
+
+    # The events and reply are now fully determined; the generator only emits.
+    collected_events = list(emitter.events)
+
     def event_source() -> Generator[str, None, None]:
-        emitter = ObservationEmitter()
-        emitter.question_count = state.questions_asked
-
-        graph_state: dict = {
-            "messages": [{"role": m["role"], "content": m["content"]} for m in state.messages],
-            "w2_source": state.w2_source,
-            "w2_data": state.w2_data,
-            "answers": dict(state.answers),
-            "questions_asked": state.questions_asked,
-            "phase": state.phase,
-            "emitter": emitter,
-            "now": time.time,
-        }
-
-        try:
-            # Guardrail check — code-only, no LLM
-            classification = llm.classify_user_turn(user_text)
-
-            if classification in ("off_task", "advice"):
-                node_result = guardrail_node(graph_state)
-            else:
-                node_result = collect_node(graph_state)
-                # If collect moved to computing, run compute immediately
-                if node_result.get("phase") == "computing":
-                    graph_state.update(node_result)
-                    node_result = compute_node(graph_state)
-
-        except Exception as exc:
-            err = ObservationEvent(
-                kind="decision",
-                summary=f"Something went wrong: {exc}",
-                ts=time.time(),
-            )
-            yield err.to_sse()
+        if error_summary is not None:
+            yield ObservationEvent(kind="decision", summary=error_summary, ts=time.time()).to_sse()
             yield "event: done\ndata: {}\n\n"
             return
-
-        # Pull the assistant's reply from the node result
-        assistant_text = ""
-        new_messages = node_result.get("messages") or []
-        for msg in new_messages:
-            content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
-            role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", "")
-            if role == "assistant" and content:
-                assistant_text = content
-
-        # Update session state from node result
-        if "answers" in node_result:
-            state.answers = node_result["answers"]
-        if "questions_asked" in node_result:
-            state.questions_asked = node_result["questions_asked"]
-        if "phase" in node_result:
-            state.phase = node_result["phase"]
-        if "tax_result" in node_result and node_result["tax_result"]:
-            # Store on session for the PDF filler (F-05)
-            pass  # tax_result not yet in SessionState; F-05 will extend it
-        if assistant_text:
-            state.messages.append({"role": "assistant", "content": assistant_text})
-
-        # Stream observation events
-        for event in emitter.events:
+        for event in collected_events:
             yield event.to_sse()
-
         yield f"event: assistant\ndata: {json.dumps({'text': assistant_text})}\n\n"
-
-        # Send the updated session as a cookie header piggyback — since we're
-        # inside a streaming response we can't set headers after the fact.
-        # Instead, emit a typed 'session' event the client can ignore; the
-        # actual cookie update is sent via a Set-Cookie workaround below.
         yield f"event: phase\ndata: {json.dumps({'phase': state.phase})}\n\n"
         yield "event: done\ndata: {}\n\n"
 
     response = StreamingResponse(event_source(), media_type="text/event-stream")
-    _set_session_cookie(response, state)
+    _set_session_cookie(response, state)  # state is now finalized
     return response
 
 
