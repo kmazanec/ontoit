@@ -38,3 +38,8 @@ R18 (public deployment), R19 (one-command local run). Acceptance: AC1 (public UR
 - Create the free-host account, connect the repo, and set the Anthropic API key as a host environment variable. Configure the keep-alive ping (in-app tab ping or external uptime cron). Confirm the public URL.
 
 ## Implementation notes (filled in by the building agent)
+
+
+## Implementation notes (build outcome)
+
+**Shipped & verified live (2026-06-24).** Deployed to Render free tier as a Docker web service via the `render.yaml` Blueprint from `kmazanec/ontoit`. Live at **https://ontoit.onrender.com**. `ANTHROPIC_API_KEY` set by the owner in the dashboard; `SESSION_SECRET` auto-generated; `KEEP_ALIVE_URL` set to the service's own /health for spin-down resistance. Full end-to-end smoke test passes 6/6 against the public URL (health, sample, greeting via live Claude, conversation, and the 501,751-byte filled 1040 download); the chat UI + live observation panel render for a real browser visitor. AC1 (public URL) and AC2 (one-command `docker compose up`) both met. Note: a brief 200/404 flap during the deploy swap window resolves once the deploy settles — documented as expected free-tier rollout behavior, not an app bug.

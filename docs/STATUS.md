@@ -12,7 +12,7 @@ Iterations 01 and 02 are **built and verified locally on main** — the full fil
 |---|-----------|--------|-------------|-------|
 | 01 | Skeleton | **Shipped (local) on main** | A | F-01: graph-state + ObservationEvent + web/cookie/SSE contracts. |
 | 02 | Core filing | **Shipped (local) on main** | B | F-02 extraction, F-03 engine (built in parallel worktrees), F-04 conversation+budget, F-05 filled 1040 PDF. Convergence found + fixed two bugs (lazy session persistence; "none" vs "one" parsing) and moved intent parsing to the LLM. 88 tests; verified end-to-end. |
-| 03 | Deploy & stretch | Not started | C | Hard-depends on the working filer (01–02). Deploy (F-06) + mid-conversation correction (F-07) + tax-trace panel (F-08). |
+| 03 | Deploy & stretch | **In progress** | C | **F-06 deployed & verified live** at https://ontoit.onrender.com (Render free tier, Docker, Blueprint from kmazanec/ontoit). Full smoke test passes 6/6 against the public URL incl. the 501 KB filled 1040 download; UI renders for a real visitor; keep-alive (`KEEP_ALIVE_URL`) set. Stretch features F-07 (correction) + F-08 (trace panel) next. |
 
 The three iterations are a genuine linear chain (02 needs 01's shipped plumbing; 03 deploys 01–02), so they build in sequence — no independent-iteration batch to collapse here. The concurrency lives *within* iteration 02 (F-02 ⟂ F-03).
 
