@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — Component & Module Map</title>
+<style>
+  :root{
+    --navy:#0f2a43;
+    --navy-2:#163a5c;
+    --slate:#5a6b7b;
+    --slate-light:#8696a6;
+    --line:#d6dde3;
+    --line-soft:#e7ecf0;
+    --paper:#ffffff;
+    --canvas:#f4f6f8;
+    --accent:#c0532a;       /* single warm accent */
+    --accent-soft:#f7ece6;
+    --ink:#1d2b36;
+    --ok:#2e6b4f;
+    --shadow:0 1px 2px rgba(15,42,67,.06), 0 8px 28px rgba(15,42,67,.08);
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 96px}
+  header.deck{display:flex;flex-direction:column;gap:6px;border-bottom:2px solid var(--navy);padding-bottom:18px;margin-bottom:8px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1{font-size:30px;line-height:1.12;margin:2px 0 0;letter-spacing:-.01em;color:var(--navy)}
+  .sub{color:var(--slate);font-size:15px;max-width:70ch;line-height:1.5;margin-top:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:18px;margin:22px 0 26px;font-size:12.5px;color:var(--slate)}
+  .legend .item{display:flex;align-items:center;gap:8px}
+  .swatch{width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.08)}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--slate-light);margin-left:auto;letter-spacing:.04em}
+
+  /* ---- map grid ---- */
+  .map{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .band{grid-column:1 / -1;display:flex;align-items:center;gap:12px;margin-top:14px}
+  .band .bl{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--slate-light)}
+  .band .rule{flex:1;height:1px;background:var(--line)}
+
+  .node{
+    position:relative;background:var(--paper);border:1px solid var(--line);border-radius:10px;
+    padding:14px 15px 13px;box-shadow:var(--shadow);cursor:pointer;transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+    min-height:86px;display:flex;flex-direction:column;gap:5px;outline:none
+  }
+  .node:hover,.node:focus-visible{transform:translateY(-2px);border-color:var(--navy-2)}
+  .node:focus-visible{box-shadow:0 0 0 3px var(--accent-soft),var(--shadow)}
+  .node .tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate-light)}
+  .node h3{margin:0;font-size:15px;color:var(--navy);line-height:1.2}
+  .node .blurb{font-size:12.5px;color:var(--slate);line-height:1.4}
+  .node .adr{position:absolute;top:11px;right:12px;font-family:var(--mono);font-size:9.5px;color:var(--accent);
+    background:var(--accent-soft);border-radius:20px;padding:2px 8px;letter-spacing:.05em;font-weight:600}
+  .node[data-kind="llm"]{border-left:3px solid var(--accent)}
+  .node[data-kind="agent"]{border-left:3px solid var(--navy)}
+  .node[data-kind="ui"]{border-left:3px solid #4b7ea6}
+  .node[data-kind="state"]{border-left:3px solid #6a8f56}
+  .node[data-kind="tool"]{border-left:3px solid #7a6aa0}
+  .node[data-kind="data"]{border-left:3px solid #b08a3a}
+  .node[data-kind="obs"]{border-left:3px solid #4a8f8f}
+
+  /* spans */
+  .c12{grid-column:span 12}.c8{grid-column:span 8}.c6{grid-column:span 6}
+  .c5{grid-column:span 5}.c4{grid-column:span 4}.c3{grid-column:span 3}.c7{grid-column:span 7}
+
+  .sub-nodes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .toolwrap{grid-column:span 12}
+
+  /* arrows note */
+  .relhint{font-family:var(--mono);font-size:10.5px;color:var(--slate-light);margin:2px 0 0}
+
+  /* ---- detail panel ---- */
+  .panel-scrim{position:fixed;inset:0;background:rgba(15,42,67,.28);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:40}
+  .panel-scrim.open{opacity:1;pointer-events:auto}
+  .panel{
+    position:fixed;top:0;right:0;height:100%;width:min(460px,92vw);background:var(--paper);
+    box-shadow:-16px 0 40px rgba(15,42,67,.18);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+    z-index:50;display:flex;flex-direction:column
+  }
+  .panel.open{transform:translateX(0)}
+  .panel .ph{padding:24px 26px 18px;border-bottom:1px solid var(--line)}
+  .panel .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .panel .ph h2{margin:6px 0 0;font-size:21px;color:var(--navy);letter-spacing:-.01em}
+  .panel .pb{padding:20px 26px 40px;overflow:auto}
+  .panel .pb h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate-light);margin:20px 0 8px}
+  .panel .pb p{font-size:14px;line-height:1.6;color:var(--ink);margin:0 0 10px}
+  .panel .pb ul{margin:0;padding-left:18px}
+  .panel .pb li{font-size:13.5px;line-height:1.55;color:var(--slate);margin-bottom:6px}
+  .panel .pb code{font-family:var(--mono);font-size:12px;background:var(--canvas);padding:1px 5px;border-radius:4px;color:var(--navy)}
+  .adr-chip{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);border:1px solid #ecd9cf;border-radius:8px;padding:8px 12px;margin-top:4px}
+  .adr-chip .num{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)}
+  .adr-chip .ttl{font-size:13px;color:var(--navy)}
+  .closeb{position:absolute;top:18px;right:18px;border:1px solid var(--line);background:var(--paper);border-radius:7px;width:30px;height:30px;cursor:pointer;font-size:16px;color:var(--slate);line-height:1}
+  .closeb:hover{border-color:var(--navy-2);color:var(--navy)}
+  .conn{font-size:12.5px;color:var(--slate);line-height:1.55}
+  .conn b{color:var(--navy)}
+
+  /* tooltip */
+  .tt{position:fixed;z-index:60;max-width:280px;background:var(--navy);color:#eef3f7;font-size:12px;line-height:1.45;
+    padding:9px 12px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);
+    transition:opacity .12s ease,transform .12s ease;pointer-events:none}
+  .tt.show{opacity:1;transform:translateY(0)}
+  .tt .ttt{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:3px}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:14px;font-size:11.5px;color:var(--slate-light);font-family:var(--mono);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .nav{display:flex;gap:8px;margin-bottom:18px}
+  .nav a{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 11px;color:var(--slate);background:var(--paper)}
+  .nav a.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .nav a:hover{border-color:var(--navy-2);color:var(--navy)}
+  @media(max-width:820px){.c8,.c6,.c5,.c7,.c4,.c3{grid-column:span 12}.sub-nodes{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a class="active" href="modules.html">01 · Modules</a>
+    <a href="data-flows.html">02 · Data Flows</a>
+    <a href="agent-graph.html">03 · Agent Graph</a>
+  </div>
+  <header class="deck">
+    <span class="eyebrow">OntoIt — System Architecture · Exhibit 01</span>
+    <h1>Component &amp; Module Map</h1>
+    <p class="sub">An agentic tax-filing assistant. Claude drives the conversation; the LangGraph state machine enforces the rules; every component decision is anchored to an Architecture Decision Record. <b>Hover</b> any node for its purpose, <b>click</b> for full detail and the ADR that decided it.</p>
+  </header>
+
+  <div class="legend">
+    <span class="item"><span class="swatch" style="background:#4b7ea6"></span>Interface</span>
+    <span class="item"><span class="swatch" style="background:var(--navy)"></span>Orchestration</span>
+    <span class="item"><span class="swatch" style="background:var(--accent)"></span>LLM</span>
+    <span class="item"><span class="swatch" style="background:#7a6aa0"></span>Tools (deterministic)</span>
+    <span class="item"><span class="swatch" style="background:#6a8f56"></span>State</span>
+    <span class="item"><span class="swatch" style="background:#b08a3a"></span>Reference data</span>
+    <span class="item"><span class="swatch" style="background:#4a8f8f"></span>Observation</span>
+    <span class="hint">hover = purpose · click = detail + ADR</span>
+  </div>
+
+  <div class="map" id="map">
+
+    <div class="band"><span class="bl">Presentation</span><span class="rule"></span></div>
+
+    <div class="node c6" data-kind="ui" tabindex="0" data-id="ui"
+      data-tt="Three-pane minimal UI: chat, live observation feed, and the line-by-line tax trace. No framework bloat.">
+      <span class="adr">ADR-009</span>
+      <span class="tag">Interface</span>
+      <h3>Web UI <span style="font-weight:400;color:var(--slate);font-size:12px">— minimal, three panes</span></h3>
+      <div class="blurb">Chat pane · live observation panel · tax-trace panel. Plain HTML/JS, fed by Server-Sent Events.</div>
+      <div class="relhint">↓ talks to FastAPI over HTTP + SSE</div>
+    </div>
+
+    <div class="node c6" data-kind="ui" tabindex="0" data-id="api"
+      data-tt="FastAPI serves the UI, runs the agent, streams events over SSE, and stores ALL session state in a signed cookie — no server-side store.">
+      <span class="adr">ADR-002</span>
+      <span class="tag">Backend</span>
+      <h3>FastAPI backend</h3>
+      <div class="blurb">Serves UI · invokes the graph · SSE event stream · reads/writes signed-cookie session state. <b>No server-side store.</b></div>
+      <div class="relhint">↔ cookie state · ↓ invokes LangGraph · ↑ SSE to UI</div>
+    </div>
+
+    <div class="band"><span class="bl">State</span><span class="rule"></span></div>
+
+    <div class="node c12" data-kind="state" tabindex="0" data-id="cookie"
+      data-tt="The entire session lives in one HttpOnly/Secure/SameSite=Strict signed cookie. Stateless server = trivially horizontal, nothing to leak from a DB.">
+      <span class="adr">ADR-003</span>
+      <span class="tag">Session State</span>
+      <h3>Signed cookie — full session state</h3>
+      <div class="blurb">Messages · extracted W-2 JSON · question counter — all signed, <code>HttpOnly</code> / <code>Secure</code> / <code>SameSite=Strict</code>. The server holds nothing between requests.</div>
+    </div>
+
+    <div class="band"><span class="bl">Orchestration &amp; Intelligence</span><span class="rule"></span></div>
+
+    <div class="node c7" data-kind="agent" tabindex="0" data-id="graph"
+      data-tt="LangGraph state machine: nodes = steps, edges = rules. Claude chooses words; the graph chooses what's allowed. Limits are code, not prompt text.">
+      <span class="adr">ADR-001</span>
+      <span class="tag">Agent runtime</span>
+      <h3>LangGraph agent <span style="font-weight:400;color:var(--slate);font-size:12px">(Python)</span></h3>
+      <div class="blurb">“Claude drives the conversation, the graph enforces the rules.” Stateful nodes &amp; conditional edges that bound the LLM from <em>outside</em> its decision path.</div>
+      <div class="relhint">→ calls Claude · → invokes Tools · → emits Observation events</div>
+    </div>
+
+    <div class="node c5" data-kind="llm" tabindex="0" data-id="claude"
+      data-tt="One provider, two roles: the conversational LLM and the W-2 vision model. Never does arithmetic — tax math is deterministic code.">
+      <span class="adr">ADR-004</span>
+      <span class="tag">LLM</span>
+      <h3>Anthropic Claude</h3>
+      <div class="blurb">The agent’s reasoning LLM <em>and</em> the W-2 vision model. Converses and reads documents — but never computes the tax.</div>
+    </div>
+
+    <div class="band"><span class="bl">Tools — deterministic, real tool calls</span><span class="rule"></span></div>
+
+    <div class="toolwrap">
+      <div class="sub-nodes">
+        <div class="node" data-kind="tool" tabindex="0" data-id="extract"
+          data-tt="Two-step: pdfplumber pulls text first (fast, free, exact); Claude Vision is the fallback for scans/images. Each field carries a confidence.">
+          <span class="adr">ADR-005</span>
+          <span class="tag">Tool · ingest</span>
+          <h3>extract_w2</h3>
+          <div class="blurb">pdfplumber text → Claude Vision fallback, with per-field confidence.</div>
+        </div>
+        <div class="node" data-kind="tool" tabindex="0" data-id="compute"
+          data-tt="Pure function. Decimal arithmetic, IRS Tax Table lookup, credits with reasons. Same input → same output, every time. The LLM is nowhere near it.">
+          <span class="adr">ADR-006</span>
+          <span class="tag">Tool · math</span>
+          <h3>compute_tax</h3>
+          <div class="blurb">Deterministic · pure · <code>Decimal</code>. Returns a <code>TaxResult</code> + line-by-line trace.</div>
+        </div>
+        <div class="node" data-kind="tool" tabindex="0" data-id="fill"
+          data-tt="PyMuPDF fills the official IRS form fields, then bake() flattens them to static text so the PDF can't be re-edited or misread.">
+          <span class="adr">ADR-007</span>
+          <span class="tag">Tool · output</span>
+          <h3>fill_1040</h3>
+          <div class="blurb">PyMuPDF fill → <code>bake()</code> to flat, static text on the official Form 1040.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band"><span class="bl">Reference Data &amp; Observation</span><span class="rule"></span></div>
+
+    <div class="node c6" data-kind="data" tabindex="0" data-id="params"
+      data-tt="2025 standard deduction, brackets, and the full IRS Tax Table — each value cited to its IRS source. compute_tax reads these; nothing is hard-coded loosely.">
+      <span class="adr">ADR-008</span>
+      <span class="tag">Reference</span>
+      <h3>2025 tax parameters + IRS Tax Table</h3>
+      <div class="blurb">Standard deduction ($15,750 Single / $31,500 MFJ), credit thresholds, and the IRS Tax Table — every figure cited to IRS. Consumed by <code>compute_tax</code>.</div>
+    </div>
+
+    <div class="node c6" data-kind="obs" tabindex="0" data-id="obs"
+      data-tt="One funnel for every signal: structured logs for ops, /health for liveness, and the SSE stream that powers the live UI panel.">
+      <span class="adr">ADR-010</span>
+      <span class="tag">Observation</span>
+      <h3>ObservationEvent emitter</h3>
+      <div class="blurb">A single funnel → structured logs · <code>/health</code> · the SSE stream feeding the live panel.</div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>OntoIt · Component &amp; Module Map · variant-a</span>
+    <span>ADR-001 … ADR-013 · tax math is code, never the LLM</span>
+  </footer>
+</div>
+
+<!-- tooltip -->
+<div class="tt" id="tt"><span class="ttt" id="ttt">Purpose</span><span id="ttb"></span></div>
+
+<!-- detail panel -->
+<div class="panel-scrim" id="scrim"></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+  <button class="closeb" id="closeb" aria-label="Close">×</button>
+  <div class="ph"><span class="tag" id="pTag">Component</span><h2 id="pTitle">—</h2></div>
+  <div class="pb" id="pBody"></div>
+</aside>
+
+<script>
+const DATA = {
+  ui:{tag:"Interface",title:"Web UI — minimal, three panes",
+    purpose:"A deliberately thin client: one screen, three panes, no SPA framework. Everything it knows arrives from the backend over HTTP and an SSE stream.",
+    panes:["<b>Chat pane</b> — the conversation with the agent.","<b>Live observation panel</b> — ObservationEvents stream in as the graph runs, so a viewer can watch each node fire.","<b>Tax-trace panel</b> — the line-by-line derivation from compute_tax, so every number on the 1040 is explainable."],
+    conn:"Talks only to the <b>FastAPI backend</b> — POSTs user turns, receives the SSE event stream, and downloads the finished PDF.",
+    adr:["ADR-009","Minimal three-pane UI over SSE — no client framework"]},
+  api:{tag:"Backend",title:"FastAPI backend",
+    purpose:"The single process the browser talks to. It serves the static UI, runs the LangGraph agent per request, streams ObservationEvents back as SSE, and persists session state by reading and re-writing a signed cookie. There is no database and no server-side session store.",
+    panes:["Serves the UI and the bundled sample W-2.","Invokes the LangGraph agent and forwards its events.","Streams events to the UI over Server-Sent Events.","Reads/writes the signed-cookie session — <b>stateless between requests</b>."],
+    conn:"Sits between the <b>UI</b> (HTTP+SSE) and the <b>LangGraph agent</b>; (de)serializes the <b>signed cookie</b> on every request.",
+    adr:["ADR-002","FastAPI + SSE; stateless request handling"]},
+  cookie:{tag:"Session State",title:"Signed cookie — full session state",
+    purpose:"The whole session is carried in one cryptographically signed cookie, round-tripped on every request. Because the server keeps nothing, the deployment is trivially horizontal and there is no session datastore to breach.",
+    panes:["Conversation <b>messages</b>.","The extracted <b>W-2 JSON</b>.","The <b>question counter</b> that the guardrail edge reads.","Flags: <code>HttpOnly</code> · <code>Secure</code> · <code>SameSite=Strict</code>; HMAC-signed so it can't be tampered with."],
+    conn:"Written and verified by the <b>FastAPI backend</b> on every turn; its question counter is the value the graph's guardrail edge checks.",
+    adr:["ADR-003","Signed-cookie session — no server-side store"]},
+  graph:{tag:"Agent runtime",title:"LangGraph agent (Python)",
+    purpose:"The orchestration core. Nodes are steps (intake → extract → validate → collect → compute → fill → done); edges are rules. The defining idea: Claude is free to choose what to say, but the graph — pure Python code — decides what is allowed to happen next. Limits live in edges, not in the prompt.",
+    panes:["Stateful nodes advance the filing.","Conditional edges enforce guardrails (e.g. block question #6) outside the LLM.","A re-ask loop returns validate → collect on bad data.","Emits an ObservationEvent on every node/edge transition."],
+    conn:"Calls <b>Claude</b> for conversation/vision, invokes the <b>Tools</b> (extract/compute/fill), and feeds the <b>ObservationEvent emitter</b>.",
+    adr:["ADR-001","LangGraph state machine — graph enforces rules, LLM drives words"]},
+  claude:{tag:"LLM",title:"Anthropic Claude",
+    purpose:"One provider serving two roles: the conversational reasoning model that runs the warm interview, and the vision model that reads a W-2 image when text extraction isn't enough. Crucially, Claude never does the tax arithmetic — frontier LLMs score only ~23–32% on 1040 accuracy (TaxCalcBench), so the math is deterministic code.",
+    panes:["Conversational agent — asks the warm questions, interprets answers.","W-2 <b>vision</b> model — fallback OCR/understanding for scanned forms.","Returns tool-call intents; the graph decides whether to honour them."],
+    conn:"Invoked by the <b>LangGraph agent</b>. Reads <b>extract_w2</b> output; proposes calls to <b>compute_tax</b> / <b>fill_1040</b> that the graph gates.",
+    adr:["ADR-004","Anthropic Claude as agent LLM + W-2 vision model"]},
+  extract:{tag:"Tool · ingest",title:"extract_w2 — two-step extraction",
+    purpose:"Turns an uploaded W-2 into structured JSON. Step one is pdfplumber text extraction — fast, free, and exact for digital PDFs. Step two, the fallback, is Claude Vision for scans and photos. Every field comes back with a confidence so downstream validation knows what to trust.",
+    panes:["<b>Step 1:</b> pdfplumber text parse.","<b>Step 2 (fallback):</b> Claude Vision for image/scanned W-2s.","Emits per-field <b>confidence</b> scores.","Output: a W-2 JSON object stored in the cookie."],
+    conn:"Invoked by the <b>graph</b> at the extract node; may call <b>Claude</b> (vision); its output feeds the <b>validate</b> node and the cookie state.",
+    adr:["ADR-005","Two-step W-2 extraction: pdfplumber → Vision fallback"]},
+  compute:{tag:"Tool · math",title:"compute_tax — deterministic engine",
+    purpose:"A pure function: same inputs always produce the same outputs. It uses Decimal arithmetic and looks tax up in the IRS Tax Table (not bracket math) for the sample range, applies credits in code with explicit reasons, and returns a TaxResult plus a line-by-line trace the UI renders.",
+    panes:["Pure &amp; deterministic — no LLM, no randomness.","<code>Decimal</code> arithmetic; IRS <b>Tax Table</b> lookup.","Credits computed in code, each with a reason (why $0 or why granted).","Returns <code>TaxResult</code> + line-by-line trace."],
+    conn:"Invoked by the <b>graph</b> at the compute node; reads <b>2025 tax parameters + Tax Table</b>; its trace flows to the <b>tax-trace panel</b> and into <b>fill_1040</b>.",
+    adr:["ADR-006","Deterministic, pure compute_tax in Decimal — never the LLM"]},
+  fill:{tag:"Tool · output",title:"fill_1040 — PDF generation",
+    purpose:"Writes the computed figures onto the official IRS 2025 Form 1040 using PyMuPDF, then calls bake() to flatten the form fields into static text. Baking means the delivered PDF can't be silently re-edited and renders identically everywhere.",
+    panes:["PyMuPDF fills the official 1040 AcroForm fields.","<code>bake()</code> flattens fields → static, flat text.","Output: a downloadable, completed official Form 1040."],
+    conn:"Invoked by the <b>graph</b> at the fill node; consumes the <b>compute_tax</b> TaxResult; the PDF is returned through the <b>FastAPI backend</b> to the UI.",
+    adr:["ADR-007","fill_1040 via PyMuPDF + bake() to flat static text"]},
+  params:{tag:"Reference",title:"2025 tax parameters + IRS Tax Table",
+    purpose:"The cited source of truth for the 2025 tax year: standard deduction ($15,750 Single / $31,500 MFJ), credit phase-out thresholds, and the full IRS Tax Table. Every value is traceable to its IRS publication so the math is auditable, not guessed.",
+    panes:["2025 standard deduction: $15,750 Single / $31,500 MFJ.","IRS <b>Tax Table</b> — the sample $28,879.35 taxable income → $3,227 tax.","Credit thresholds: Saver's Credit phases out at $39,500 Single; EITC childless limit $19,104.","Every figure cited to its IRS source."],
+    conn:"Read exclusively by <b>compute_tax</b>. Keeping it a cited data module (not inline constants) makes every line on the 1040 traceable to an IRS source.",
+    adr:["ADR-008","2025 parameters + IRS Tax Table as cited reference data"]},
+  obs:{tag:"Observation",title:"ObservationEvent emitter",
+    purpose:"A single funnel for every operational signal in the system. The graph emits an ObservationEvent on each transition; the emitter fans it out to structured logs (for ops), the /health endpoint (for liveness), and the SSE stream that drives the live UI panel — so what the judge sees on screen is the same event stream ops sees in logs.",
+    panes:["<b>Structured logs</b> — machine-readable, for ops/debugging.","<code>/health</code> — liveness &amp; readiness.","<b>SSE stream</b> — powers the live observation panel in the UI."],
+    conn:"Fed by the <b>LangGraph agent</b> (and tools); fans out to logs, <code>/health</code>, and the <b>Web UI</b> live panel via the FastAPI SSE stream.",
+    adr:["ADR-010","Single ObservationEvent funnel → logs + /health + SSE"]}
+};
+
+/* ---------- tooltip ---------- */
+const tt=document.getElementById('tt'),ttb=document.getElementById('ttb');
+function moveTT(e){
+  const pad=14;let x=e.clientX+pad,y=e.clientY+pad;
+  const r=tt.getBoundingClientRect();
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-pad;
+  if(y+r.height>innerHeight-8)y=e.clientY-r.height-pad;
+  tt.style.left=x+'px';tt.style.top=y+'px';
+}
+document.querySelectorAll('.node').forEach(n=>{
+  n.addEventListener('mouseenter',e=>{ttb.textContent=n.dataset.tt;tt.classList.add('show');moveTT(e);});
+  n.addEventListener('mousemove',moveTT);
+  n.addEventListener('mouseleave',()=>tt.classList.remove('show'));
+  n.addEventListener('focus',()=>{ttb.textContent=n.dataset.tt;const r=n.getBoundingClientRect();tt.style.left=r.left+'px';tt.style.top=(r.bottom+8)+'px';tt.classList.add('show');});
+  n.addEventListener('blur',()=>tt.classList.remove('show'));
+  n.addEventListener('click',()=>openPanel(n.dataset.id));
+  n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPanel(n.dataset.id);}});
+});
+
+/* ---------- panel ---------- */
+const scrim=document.getElementById('scrim'),panel=document.getElementById('panel');
+function openPanel(id){
+  const d=DATA[id];if(!d)return;
+  document.getElementById('pTag').textContent=d.tag;
+  document.getElementById('pTitle').textContent=d.title;
+  const body=document.getElementById('pBody');
+  body.innerHTML=
+    `<p>${d.purpose}</p>`+
+    `<h4>What it does</h4><ul>${d.panes.map(p=>`<li>${p}</li>`).join('')}</ul>`+
+    `<h4>How it connects</h4><p class="conn">${d.conn}</p>`+
+    `<h4>Decision record</h4><div class="adr-chip"><span class="num">${d.adr[0]}</span><span class="ttt"></span><span class="ttl">${d.adr[1]}</span></div>`;
+  scrim.classList.add('open');panel.classList.add('open');tt.classList.remove('show');
+}
+function closePanel(){scrim.classList.remove('open');panel.classList.remove('open');}
+document.getElementById('closeb').onclick=closePanel;
+scrim.onclick=closePanel;
+addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+</script>
+</body>
+</html>

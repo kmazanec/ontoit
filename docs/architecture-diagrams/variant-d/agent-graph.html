@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — Agent Graph &amp; Four Pillars</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121723; --panel2:#161d2c; --ink:#e8edf6; --muted:#8a97ad;
+    --line:#26314a; --accent:#4f8cff; --accent2:#22d3a6; --warn:#ffb454; --danger:#ff6b6b;
+    --chip:#1b2436; --shadow:0 8px 30px rgba(0,0,0,.45); --claude:#d97757;
+    --p-chat:#4f8cff; --p-tools:#22d3a6; --p-guard:#ffb454; --p-obs:#c084fc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:radial-gradient(1200px 700px at 50% -10%, #16213a 0%, var(--bg) 55%);
+    color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;}
+  .wrap{height:100vh; display:flex; flex-direction:column; padding:22px 30px 14px; max-width:1560px; margin:0 auto;}
+  .eyebrow{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:700;}
+  .eyebrow b{color:var(--accent2)}
+  h1{margin:4px 0 0; font-size:28px; line-height:1.13; font-weight:800; letter-spacing:-.01em; max-width:1100px}
+  h1 .hl{color:var(--warn)}
+  .sub{color:var(--muted); font-size:13.5px; margin-top:3px}
+  .stage{flex:1; min-height:0; display:flex; gap:18px; margin-top:12px;}
+  .graphbox{flex:1.5; min-width:0; background:linear-gradient(180deg,#0f1420,#0c111b); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); position:relative; overflow:hidden;}
+  svg{width:100%; height:100%; display:block}
+  .node{cursor:pointer}
+  .node rect, .node circle{transition:filter .15s, stroke-width .15s}
+  .node:hover rect, .node.active rect, .node:hover circle, .node.active circle{filter:drop-shadow(0 0 11px rgba(255,255,255,.18)); stroke-width:2.6}
+  .nt{font-weight:700; font-size:12px; fill:var(--ink); pointer-events:none}
+  .ns{font-size:9.5px; fill:var(--muted); pointer-events:none}
+  .elabel{font-size:9px; fill:#9aa6bd; font-weight:700; pointer-events:none}
+  /* pillars rail */
+  .rail{width:340px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow:hidden;}
+  .pillar{background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:12px 14px; cursor:pointer; transition:border-color .15s, transform .1s; border-left-width:4px;}
+  .pillar:hover, .pillar.active{transform:translateY(-1px)}
+  .pillar.chat{border-left-color:var(--p-chat)} .pillar.tools{border-left-color:var(--p-tools)}
+  .pillar.guard{border-left-color:var(--p-guard)} .pillar.obs{border-left-color:var(--p-obs)}
+  .pillar.active.chat{border-color:var(--p-chat)} .pillar.active.tools{border-color:var(--p-tools)}
+  .pillar.active.guard{border-color:var(--p-guard)} .pillar.active.obs{border-color:var(--p-obs)}
+  .pillar .ph{display:flex; align-items:center; gap:8px}
+  .pillar .ico{width:24px; height:24px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900;}
+  .pillar.chat .ico{background:#13233f; color:var(--p-chat)} .pillar.tools .ico{background:#0f2620; color:var(--p-tools)}
+  .pillar.guard .ico{background:#2c2208; color:var(--p-guard)} .pillar.obs .ico{background:#241335; color:var(--p-obs)}
+  .pillar h3{margin:0; font-size:14.5px; font-weight:800; letter-spacing:-.01em}
+  .pillar .tl{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .pillar p{margin:7px 0 0; font-size:12px; color:#bcc7da; line-height:1.45; max-height:0; overflow:hidden; transition:max-height .22s ease, margin .22s;}
+  .pillar.active p{max-height:120px; margin-top:8px}
+  .pillar .code{display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:10.5px; background:#0e1420; border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:#9fe6cb; margin-top:6px}
+  /* chips bottom */
+  .chips{display:flex; gap:9px; flex-wrap:wrap; margin-top:11px;}
+  .chip{background:var(--chip); border:1px solid var(--line); border-radius:999px; padding:5px 12px; font-size:12px; display:flex; align-items:center; gap:6px; white-space:nowrap;}
+  .chip b{color:var(--accent2); font-weight:700}
+  .chip.warn b{color:var(--warn)}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  @media (max-width:1080px){ body{overflow:auto} .wrap{height:auto} .stage{flex-direction:column} .rail{width:auto} .graphbox{min-height:460px} .pillar p{max-height:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">OntoIt · <b>LangGraph agent</b> · four pillars</div>
+  <h1>A real agent whose limits are <span class="hl">concrete code a judge can point at</span> — not prompt requests.</h1>
+  <div class="sub">Seven nodes, a guardrail node, and a re-ask loop. Hover a pillar to light up the part of the graph that proves it.</div>
+
+  <div class="stage">
+    <div class="graphbox">
+      <svg viewBox="0 0 760 600" preserveAspectRatio="xMidYMid meet" id="svg">
+        <defs>
+          <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#54627e"/></marker>
+          <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ffb454"/></marker>
+        </defs>
+
+        <!-- main spine edges -->
+        <g class="edge" fill="none" stroke="#3a4762" stroke-width="2">
+          <path d="M120,70 L120,118" marker-end="url(#a)"/>           <!-- intake->extract -->
+          <path d="M120,178 L120,226" marker-end="url(#a)"/>          <!-- extract->validate -->
+          <path d="M120,286 L120,334" marker-end="url(#a)"/>          <!-- validate->collect -->
+          <path d="M120,394 L120,442" marker-end="url(#a)"/>          <!-- collect->compute -->
+          <path d="M120,502 L120,540" marker-end="url(#a)"/>          <!-- compute->fill -->
+        </g>
+        <!-- fill -> done -->
+        <g class="edge" fill="none" stroke="#3a4762" stroke-width="2">
+          <path d="M210,560 L420,560 L420,560" marker-end="url(#a)"/>
+        </g>
+
+        <!-- re-ask loop: collect -> guardrail -> back to collect -->
+        <g class="edge eg-guard" fill="none" stroke="#ffb454" stroke-width="2" stroke-dasharray="5 4">
+          <path d="M210,364 L300,364" marker-end="url(#ag)"/>                       <!-- collect -> guardrail -->
+          <path d="M340,394 C340,470 200,470 165,394" marker-end="url(#ag)"/>       <!-- guardrail -> collect (re-ask) -->
+        </g>
+        <text class="elabel eg-guard" x="216" y="356">ask?</text>
+        <text class="elabel eg-guard" x="232" y="462">re-ask if questions_asked &lt; 5</text>
+        <!-- guardrail -> compute when capped/done -->
+        <g class="edge eg-guard" fill="none" stroke="#ffb454" stroke-width="2">
+          <path d="M340,394 C420,430 360,442 215,460" marker-end="url(#ag)"/>
+        </g>
+        <text class="elabel eg-guard" x="350" y="416">questions_asked &gt;= 5 → STOP asking</text>
+
+        <!-- validate -> collect labeled re-validate loop hint -->
+        <text class="elabel" x="132" y="316">valid → collect</text>
+
+        <!-- NODES (spine) -->
+        <g class="node" data-tags="chat obs" transform="translate(60,30)">
+          <rect width="120" height="40" rx="9" fill="#101824" stroke="#4f8cff"/>
+          <text class="nt" x="60" y="24" text-anchor="middle">intake</text>
+        </g>
+        <g class="node" data-tags="tools obs" transform="translate(60,138)">
+          <rect width="120" height="40" rx="9" fill="#101f1a" stroke="#22d3a6"/>
+          <text class="nt" x="60" y="19" text-anchor="middle">extract</text>
+          <text class="ns" x="60" y="33" text-anchor="middle">pdfplumber→Vision</text>
+        </g>
+        <g class="node" data-tags="guard obs" transform="translate(60,246)">
+          <rect width="120" height="40" rx="9" fill="#161208" stroke="#ffb454"/>
+          <text class="nt" x="60" y="19" text-anchor="middle">validate</text>
+          <text class="ns" x="60" y="33" text-anchor="middle">schema + cross-field</text>
+        </g>
+        <g class="node" data-tags="chat guard obs" transform="translate(60,334)">
+          <rect width="120" height="40" rx="9" fill="#101824" stroke="#4f8cff"/>
+          <text class="nt" x="60" y="19" text-anchor="middle">collect</text>
+          <text class="ns" x="60" y="33" text-anchor="middle">warm questions</text>
+        </g>
+        <g class="node" data-tags="tools obs" transform="translate(60,442)">
+          <rect width="120" height="40" rx="9" fill="#101f1a" stroke="#22d3a6"/>
+          <text class="nt" x="60" y="19" text-anchor="middle">compute</text>
+          <text class="ns" x="60" y="33" text-anchor="middle">deterministic tax</text>
+        </g>
+        <g class="node" data-tags="tools obs" transform="translate(60,540)">
+          <rect width="150" height="40" rx="9" fill="#101f1a" stroke="#22d3a6"/>
+          <text class="nt" x="75" y="19" text-anchor="middle">fill</text>
+          <text class="ns" x="75" y="33" text-anchor="middle">PyMuPDF + bake</text>
+        </g>
+        <g class="node" data-tags="obs" transform="translate(420,540)">
+          <rect width="120" height="40" rx="9" fill="#14101f" stroke="#c084fc"/>
+          <text class="nt" x="60" y="24" text-anchor="middle">done</text>
+        </g>
+
+        <!-- GUARDRAIL node -->
+        <g class="node" data-tags="guard" transform="translate(300,334)">
+          <rect width="80" height="60" rx="30" fill="#1f1808" stroke="#ffb454" stroke-width="2.4"/>
+          <text class="nt" x="40" y="29" text-anchor="middle" style="font-size:11px">guardrail</text>
+          <text class="ns" x="40" y="44" text-anchor="middle" style="font-size:9px">edge logic</text>
+        </g>
+
+        <!-- pillar gutter labels -->
+        <text x="660" y="50" class="elabel" style="font-size:10px; fill:#7fb0ff">CHAT LOOP</text>
+        <text x="650" y="160" class="elabel" style="font-size:10px; fill:#4fe0bb">TOOLS</text>
+        <text x="640" y="270" class="elabel" style="font-size:10px; fill:#ffc878">GUARDRAILS</text>
+        <text x="640" y="560" class="elabel" style="font-size:10px; fill:#c9a3f5">OBSERVATION</text>
+      </svg>
+    </div>
+
+    <div class="rail" id="rail">
+      <div class="pillar chat" data-pillar="chat">
+        <div class="ph"><div class="ico">1</div><div><div class="tl">Pillar I</div><h3>Chat Loop</h3></div></div>
+        <p>A <b>stateful graph</b> drives the dialogue, and the whole conversation state lives in a <b>signed cookie</b> — message history plus extracted W-2 — so any node can resume the thread with no server-side session.
+        <span class="code">intake · collect (stateful graph + cookie)</span></p>
+      </div>
+      <div class="pillar tools" data-pillar="tools">
+        <div class="ph"><div class="ico">2</div><div><div class="tl">Pillar II</div><h3>Tools</h3></div></div>
+        <p>The agent's real work is three deterministic tools: <b>extract</b> (pdfplumber→Vision), <b>compute</b> (pure Decimal tax math), and <b>fill</b> (PyMuPDF onto the IRS form). Claude calls them; it doesn't <em>do</em> them.
+        <span class="code">extract · compute · fill</span></p>
+      </div>
+      <div class="pillar guard" data-pillar="guard">
+        <div class="ph"><div class="ico">3</div><div><div class="tl">Pillar III</div><h3>Guardrails</h3></div></div>
+        <p>A conditional edge — <b>questions_asked &gt;= 5</b> — plus a guardrail node and a validation node enforce the limits <b>outside the LLM's path</b>. The cap is code on an edge, not a sentence in a prompt.
+        <span class="code">if questions_asked &gt;= 5: stop</span></p>
+      </div>
+      <div class="pillar obs" data-pillar="obs">
+        <div class="ph"><div class="ico">4</div><div><div class="tl">Pillar IV</div><h3>Observation</h3></div></div>
+        <p>Every transition emits an <b>ObservationEvent</b>, streamed live over SSE to the UI and fanned out to logs and <b>/health</b>. The agent's whole run is watchable as it happens.
+        <span class="code">emit(ObservationEvent) on every edge</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="chips">
+    <div class="chip warn"><span class="dot"></span>Cap is an <b>edge</b>, not a prompt — judge can point at it</div>
+    <div class="chip"><span class="dot"></span>Tax via <b>IRS 2025 Tax Table</b>, not bracket math</div>
+    <div class="chip"><span class="dot"></span>Both credits <b>$0</b>: Saver's phases out &gt;$39,500 · EITC childless limit $19,104</div>
+    <div class="chip"><span class="dot"></span>LLMs ~<b>23–32%</b> on TaxCalcBench → math stays in code</div>
+  </div>
+</div>
+
+<script>
+function setPillar(p){
+  document.querySelectorAll(".pillar").forEach(el=>el.classList.toggle("active",el.dataset.pillar===p));
+  document.querySelectorAll(".node").forEach(n=>{
+    const tags=(n.dataset.tags||"").split(" ");
+    const on=tags.includes(p);
+    n.style.opacity=on?"1":"0.28";
+    n.classList.toggle("active",on);
+  });
+  // guard edges visible only on guard pillar emphasis
+  document.querySelectorAll(".eg-guard").forEach(e=>{ e.style.opacity=(p==="guard")?"1":"0.32"; });
+}
+document.querySelectorAll(".pillar").forEach(el=>{
+  el.setAttribute("tabindex","0");
+  el.addEventListener("mouseenter",()=>setPillar(el.dataset.pillar));
+  el.addEventListener("focus",()=>setPillar(el.dataset.pillar));
+  el.addEventListener("click",()=>setPillar(el.dataset.pillar));
+});
+// node hover highlights its pillars too
+document.querySelectorAll(".node").forEach(n=>{
+  n.addEventListener("mouseenter",()=>{
+    const first=(n.dataset.tags||"").split(" ")[0];
+    if(first) setPillar(first);
+  });
+});
+setPillar("guard");
+</script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — Filing Session Data Flow</title>
+<style>
+  :root{
+    --navy:#0f2a43;--navy-2:#163a5c;--slate:#5a6b7b;--slate-light:#8696a6;
+    --line:#d6dde3;--line-soft:#e7ecf0;--paper:#fff;--canvas:#f4f6f8;
+    --accent:#c0532a;--accent-soft:#f7ece6;--ink:#1d2b36;--ok:#2e6b4f;--ok-soft:#e7f1ec;
+    --block:#a23a2c;--block-soft:#f6e6e3;
+    --shadow:0 1px 2px rgba(15,42,67,.06),0 8px 28px rgba(15,42,67,.08);
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 96px}
+  .nav{display:flex;gap:8px;margin-bottom:18px}
+  .nav a{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 11px;color:var(--slate);background:var(--paper)}
+  .nav a.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .nav a:hover{border-color:var(--navy-2);color:var(--navy)}
+  header.deck{border-bottom:2px solid var(--navy);padding-bottom:18px;margin-bottom:8px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1{font-size:30px;line-height:1.12;margin:2px 0 0;letter-spacing:-.01em;color:var(--navy)}
+  .sub{color:var(--slate);font-size:15px;max-width:72ch;line-height:1.5;margin-top:6px}
+
+  .controls{display:flex;align-items:center;gap:12px;margin:22px 0 8px;flex-wrap:wrap}
+  .btn{font-family:var(--mono);font-size:12px;letter-spacing:.04em;border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:8px;padding:9px 16px;cursor:pointer;transition:.14s}
+  .btn:hover{background:var(--navy-2)}
+  .btn.ghost{background:var(--paper);color:var(--navy)}
+  .btn.ghost:hover{background:var(--canvas)}
+  .progresslab{font-family:var(--mono);font-size:11px;color:var(--slate-light);margin-left:auto;letter-spacing:.04em}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--slate-light);letter-spacing:.03em}
+
+  .stage{display:grid;grid-template-columns:1fr 360px;gap:22px;margin-top:18px;align-items:start}
+  @media(max-width:900px){.stage{grid-template-columns:1fr}}
+
+  /* lanes header */
+  .lanes{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--paper);position:sticky;top:0;z-index:5}
+  .lane{padding:11px 10px;text-align:center;border-right:1px solid var(--line-soft)}
+  .lane:last-child{border-right:none}
+  .lane .ln{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-light)}
+  .lane .lt{font-size:12px;color:var(--navy);font-weight:600;margin-top:2px;line-height:1.15}
+
+  .seq{position:relative;margin-top:14px;padding-left:4px}
+  /* the spine */
+  .step{position:relative;display:grid;grid-template-columns:46px 1fr;gap:14px;padding:0 0 14px}
+  .gutter{position:relative;display:flex;flex-direction:column;align-items:center}
+  .dot{width:30px;height:30px;border-radius:50%;background:var(--paper);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:12px;font-weight:700;color:var(--slate);z-index:2;transition:.2s}
+  .spine{position:absolute;top:30px;bottom:-14px;width:2px;background:var(--line);left:50%;transform:translateX(-50%);z-index:1}
+  .step:last-child .spine{display:none}
+
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:13px 16px;cursor:pointer;transition:.18s;position:relative}
+  .card:hover{border-color:var(--navy-2);transform:translateX(2px)}
+  .card .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
+  .card h3{margin:3px 0 0;font-size:15.5px;color:var(--navy);line-height:1.2}
+  .card .desc{font-size:12.8px;color:var(--slate);line-height:1.45;margin-top:4px}
+  .card .ev{margin-top:8px;display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;color:var(--slate-light);border-top:1px dashed var(--line);padding-top:7px;width:100%}
+  .card .ev b{color:#4a8f8f}
+  .pill{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle}
+  .pill.block{background:var(--block-soft);color:var(--block);border:1px solid #e7c8c2}
+  .pill.det{background:#efeaf5;color:#5b4a86;border:1px solid #ddd2ec}
+  .pill.loop{background:var(--accent-soft);color:var(--accent);border:1px solid #ecd9cf}
+
+  /* highlighted special steps */
+  .card.special-block{border-left:3px solid var(--block);background:linear-gradient(0deg,var(--block-soft),var(--paper) 60%)}
+  .card.special-det{border-left:3px solid #5b4a86}
+
+  /* active state during play */
+  .step.active .dot{border-color:var(--accent);color:#fff;background:var(--accent);box-shadow:0 0 0 5px var(--accent-soft)}
+  .step.done .dot{border-color:var(--ok);color:#fff;background:var(--ok)}
+  .step.active .card{border-color:var(--accent)}
+  .step.dim{opacity:.5}
+
+  /* live panel */
+  .live{position:sticky;top:14px;background:#0c2236;border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .live .lh{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:9px}
+  .live .lh .pulse{width:9px;height:9px;border-radius:50%;background:#4a8f8f;box-shadow:0 0 0 0 rgba(74,143,143,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,143,143,.5)}70%{box-shadow:0 0 0 7px rgba(74,143,143,0)}100%{box-shadow:0 0 0 0 rgba(74,143,143,0)}}
+  .live .lh .lt{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#9fc4c4}
+  .live .lh .src{font-family:var(--mono);font-size:9.5px;color:#5d7689;margin-left:auto}
+  .feed{padding:10px 14px 16px;height:430px;overflow:auto;font-family:var(--mono);font-size:11.5px;line-height:1.5}
+  .feed .row{color:#cdd9e2;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);opacity:0;transform:translateY(6px);animation:rin .3s forwards}
+  @keyframes rin{to{opacity:1;transform:none}}
+  .feed .row .ts{color:#5d7689}
+  .feed .row .ty{color:#9fc4c4}
+  .feed .row.block .ty{color:#e08a7c}
+  .feed .row.det .ty{color:#b7a6df}
+  .feed .row .msg{color:#e6edf2}
+  .feed .empty{color:#5d7689;font-style:italic;padding-top:8px}
+
+  /* detail panel */
+  .panel-scrim{position:fixed;inset:0;background:rgba(15,42,67,.28);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .panel-scrim.open{opacity:1;pointer-events:auto}
+  .panel{position:fixed;top:0;right:0;height:100%;width:min(470px,92vw);background:var(--paper);box-shadow:-16px 0 40px rgba(15,42,67,.18);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+  .panel.open{transform:translateX(0)}
+  .panel .ph{padding:24px 26px 18px;border-bottom:1px solid var(--line)}
+  .panel .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .panel .ph h2{margin:6px 0 0;font-size:21px;color:var(--navy)}
+  .panel .pb{padding:20px 26px 40px;overflow:auto}
+  .panel .pb h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate-light);margin:18px 0 8px}
+  .panel .pb p{font-size:14px;line-height:1.6;margin:0 0 10px}
+  .panel .pb ul{margin:0;padding-left:18px}
+  .panel .pb li{font-size:13.5px;line-height:1.55;color:var(--slate);margin-bottom:6px}
+  .panel .pb code{font-family:var(--mono);font-size:12px;background:var(--canvas);padding:1px 5px;border-radius:4px;color:var(--navy)}
+  .evchip{display:inline-flex;gap:8px;align-items:center;background:#0c2236;color:#cdd9e2;border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:11px}
+  .evchip b{color:#9fc4c4}
+  .closeb{position:absolute;top:18px;right:18px;border:1px solid var(--line);background:var(--paper);border-radius:7px;width:30px;height:30px;cursor:pointer;font-size:16px;color:var(--slate)}
+  .closeb:hover{border-color:var(--navy-2);color:var(--navy)}
+  .callout{border:1px solid #e7c8c2;background:var(--block-soft);border-radius:9px;padding:11px 13px;margin-top:8px}
+  .callout.det{border-color:#ddd2ec;background:#efeaf5}
+  .callout .ct{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--block);font-weight:700}
+  .callout.det .ct{color:#5b4a86}
+  .callout p{font-size:13px!important;color:var(--ink);margin:5px 0 0!important}
+
+  .tt{position:fixed;z-index:60;max-width:270px;background:var(--navy);color:#eef3f7;font-size:12px;line-height:1.45;padding:9px 12px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);transition:.12s;pointer-events:none}
+  .tt.show{opacity:1;transform:translateY(0)}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:14px;font-size:11.5px;color:var(--slate-light);font-family:var(--mono);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a href="modules.html">01 · Modules</a>
+    <a class="active" href="data-flows.html">02 · Data Flows</a>
+    <a href="agent-graph.html">03 · Agent Graph</a>
+  </div>
+  <header class="deck">
+    <span class="eyebrow">OntoIt — System Architecture · Exhibit 02</span>
+    <h1>The Filing Session, End to End</h1>
+    <p class="sub">One full session from upload to a completed IRS Form 1040 — as a sequence. Every step emits an <b>ObservationEvent</b> to the live panel. <b>Play</b> the session to watch events stream; <b>hover</b> a step for its data contract; <b>click</b> for detail. Two moments are called out: the edge that <b>blocks question #6</b>, and credits <b>computed in code, shown with reasons</b>.</p>
+  </header>
+
+  <div class="controls">
+    <button class="btn" id="play">▶ Play session</button>
+    <button class="btn ghost" id="step">Step ›</button>
+    <button class="btn ghost" id="reset">Reset</button>
+    <span class="hint">sample filer: Single, no dependents</span>
+    <span class="progresslab" id="prog">0 / 9 steps</span>
+  </div>
+
+  <div class="stage">
+    <div>
+      <div class="lanes">
+        <div class="lane"><div class="ln">Actor</div><div class="lt">User / UI</div></div>
+        <div class="lane"><div class="ln">Service</div><div class="lt">FastAPI</div></div>
+        <div class="lane"><div class="ln">Runtime</div><div class="lt">LangGraph</div></div>
+        <div class="lane"><div class="ln">Tools</div><div class="lt">extract · compute · fill</div></div>
+        <div class="lane"><div class="ln">Signal</div><div class="lt">Observation</div></div>
+      </div>
+
+      <div class="seq" id="seq"><!-- steps injected --></div>
+    </div>
+
+    <div class="live">
+      <div class="lh"><span class="pulse"></span><span class="lt">Live observation</span><span class="src">SSE · /events</span></div>
+      <div class="feed" id="feed"><div class="empty">Press “Play session” — ObservationEvents will stream here over SSE as each node fires.</div></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>OntoIt · Filing Session Data Flow · variant-a</span>
+    <span>tax = deterministic code · refund ≈ $4,405 · both credits $0</span>
+  </footer>
+</div>
+
+<div class="tt" id="tt"></div>
+
+<div class="panel-scrim" id="scrim"></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+  <button class="closeb" id="closeb" aria-label="Close">×</button>
+  <div class="ph"><span class="tag" id="pTag">Step</span><h2 id="pTitle">—</h2></div>
+  <div class="pb" id="pBody"></div>
+</aside>
+
+<script>
+const STEPS=[
+ {id:1,lane:"User / UI",who:"User → UI",title:"Upload W-2 (or pick the bundled sample)",
+  desc:"The filer drags in a W-2 PDF, or selects the bundled sample filer. The file is POSTed to the backend.",
+  tt:"Data in: a W-2 PDF (or sample id). Nothing parsed yet.",
+  ev:{ty:"session.start",msg:"upload received · 1 file"},
+  detail:{intro:"The session begins. The UI sends the W-2 to FastAPI; no parsing has happened yet. The bundled sample exists so a judge can run the whole flow with zero setup.",
+   pts:["Input: a W-2 PDF, or the sample filer (Single, no dependents).","The file never lands in a database — it's processed in-request.","First ObservationEvent fires: <code>session.start</code>."]}},
+ {id:2,lane:"FastAPI",who:"FastAPI → Graph",title:"FastAPI invokes the graph",
+  desc:"The backend deserializes the signed cookie, builds the graph state, and invokes the LangGraph agent. The SSE stream opens.",
+  tt:"Signed cookie → graph state. SSE channel to the UI opens here.",
+  ev:{ty:"graph.invoke",msg:"state hydrated from cookie · SSE open"},
+  detail:{intro:"FastAPI reads the signed cookie into graph state and starts the run. From here on, every node/edge transition will stream to the UI.",
+   pts:["Session state comes entirely from the signed cookie — no server store.","The SSE connection to the live panel opens now.","ObservationEvent: <code>graph.invoke</code>."]}},
+ {id:3,lane:"Tools",who:"Tool · extract_w2",title:"extract_w2 — pdfplumber → Vision",
+  desc:"Two-step extraction: pdfplumber pulls text first; Claude Vision is the fallback for scans. Each field returns with a confidence.",
+  tt:"Out: W-2 JSON with per-field confidence. wages $44,629.35, withholding $7,631.62.",
+  ev:{ty:"tool.extract_w2",msg:"pdfplumber ✓ · 12 fields · conf≥0.97"},
+  detail:{intro:"The extract node turns the PDF into structured W-2 JSON. Digital PDFs resolve via pdfplumber; only scans fall through to Claude Vision.",
+   pts:["Step 1: pdfplumber text parse (fast, exact, free).","Step 2 fallback: Claude Vision for image/scanned forms.","Per-field confidence scores accompany every value.","Sample: wages <code>$44,629.35</code>, withholding <code>$7,631.62</code>."]}},
+ {id:4,lane:"LangGraph",who:"Node · validate",title:"validate — schema + cross-field checks",
+  desc:"Schema validation plus cross-field sanity: Box 2 < Box 1, Social Security ≈ 6.2% of wages. Failures re-ask via the validate→collect loop.",
+  tt:"Checks: Box2<Box1 · SS≈6.2%. On failure → re-ask loop back to collect.",
+  ev:{ty:"node.validate",msg:"schema ✓ · Box2<Box1 ✓ · SS 6.20% ✓"},
+  detail:{intro:"A code gate, not a prompt. The extracted W-2 is checked against a schema and cross-field rules before the conversation can proceed.",
+   pts:["Schema validation of every W-2 field.","Cross-field checks: withholding (Box 2) < wages (Box 1).","Social Security withheld ≈ 6.2% of wages.","On failure the graph re-asks via the <b>validate → collect</b> loop — it does not guess."]}},
+ {id:5,lane:"LangGraph",who:"Node · collect (Q1–5)",title:"Up to 5 warm questions",pill:"loop",
+  desc:"Claude runs a warm interview: filing status, dependents, and confirmation of the W-2 figures. A code counter increments once per question.",
+  tt:"questions_asked increments per turn. Claude phrases; the graph counts.",
+  ev:{ty:"node.collect",msg:"Q1 filing status · Q2 dependents · Q3–5 confirm · counter=5"},
+  detail:{intro:"The conversational heart. Claude asks at most five warm questions — filing status, dependents, and confirmation of the extracted figures. Each question increments a counter held in the cookie.",
+   pts:["Q: filing status → <b>Single</b>.","Q: dependents → <b>none</b>.","Q: confirm wages / withholding from the W-2.","<code>questions_asked</code> increments in code on every turn — Claude writes the words, the graph keeps the count."]}},
+ {id:6,lane:"LangGraph",who:"Edge · guardrail",title:"Edge BLOCKS question #6",pill:"block",special:"block",
+  desc:"A conditional edge reads questions_asked ≥ 5 and refuses a sixth question — routing straight to compute. The limit is an edge in code, outside the LLM's control.",
+  tt:"questions_asked ≥ 5 → route to compute. The LLM cannot vote its way past this edge.",
+  ev:{ty:"edge.block",msg:"questions_asked=5 ≥ 5 → BLOCK Q#6 → route:compute"},
+  detail:{intro:"The headline guardrail. Even if Claude wants to keep chatting, a conditional edge checks the counter and routes the graph onward. The cap is concrete code a judge can point at — not a polite request in the prompt.",
+   pts:["Condition: <code>questions_asked &gt;= 5</code>.","Effect: question #6 is never asked; the graph routes to <b>compute</b>.","Enforced in the edge, <b>outside</b> the LLM's decision path.","This is why the agent can't be talked into an endless interview."],
+   callout:{kind:"block",t:"Why this matters",p:"The limit lives in a graph edge, not in the system prompt. An LLM can be cajoled past a prompt instruction; it cannot route itself past a Python conditional edge."}}},
+ {id:7,lane:"Tools",who:"Tool · compute_tax",title:"compute_tax — deterministic, with reasons",pill:"det",special:"det",
+  desc:"Pure Decimal math. Taxable income via the standard deduction, tax from the IRS Tax Table (not bracket math), and BOTH credits computed in code — each with a reason.",
+  tt:"taxable $28,879.35 → tax $3,227 (IRS Tax Table). Saver's $0, EITC $0 — with reasons.",
+  ev:{ty:"tool.compute_tax",msg:"taxable=28,879.35 · tax=3,227 (Tax Table) · credits=$0 ×2"},
+  detail:{intro:"The number-crunching node — and it is never the LLM. compute_tax is a pure function over the cited 2025 parameters and the IRS Tax Table.",
+   pts:["Standard deduction (Single 2025): <code>$15,750</code>.","Taxable income: $44,629.35 − $15,750 = <code>$28,879.35</code>.","Tax from the IRS <b>Tax Table</b> (not bracket math): <code>$3,227</code>.","Withholding $7,631.62 − tax $3,227 ⇒ refund <b>≈ $4,405</b>.","Saver's Credit = <b>$0</b> — income above the $39,500 Single phase-out.","EITC = <b>$0</b> — above the $19,104 childless limit."],
+   callout:{kind:"det",t:"Credits computed in code, shown with reasons",p:"Both credits resolve to $0 — but the engine returns <em>why</em> ($39,500 Saver's phase-out; $19,104 EITC childless limit), so the trace panel can explain every zero. Frontier LLMs score only ~23–32% on 1040 accuracy (TaxCalcBench); the math is code, not the model."}}},
+ {id:8,lane:"Tools",who:"Tool · fill_1040",title:"fill_1040 — PyMuPDF + bake()",
+  desc:"PyMuPDF writes the figures onto the official IRS 2025 Form 1040, then bake() flattens the fields to static text so the PDF can't be re-edited.",
+  tt:"Out: completed official Form 1040, fields baked to flat static text.",
+  ev:{ty:"tool.fill_1040",msg:"fields filled · bake() ✓ · flat PDF ready"},
+  detail:{intro:"The compute trace is written onto the real form. PyMuPDF fills the AcroForm fields; bake() flattens them so the delivered PDF renders identically everywhere and can't be silently altered.",
+   pts:["PyMuPDF fills the official IRS 2025 Form 1040 fields.","<code>bake()</code> flattens fields → static, flat text.","Output: a completed, downloadable official Form 1040."]}},
+ {id:9,lane:"User / UI",who:"UI ← FastAPI",title:"Download the completed Form 1040",
+  desc:"The finished PDF streams back through FastAPI to the browser. The tax-trace panel shows every line; the session ends.",
+  tt:"User receives the completed 1040 + the full line-by-line trace.",
+  ev:{ty:"session.done",msg:"1040 delivered · refund ≈ $4,405 · trace rendered"},
+  detail:{intro:"The session closes. The user downloads the completed Form 1040 and sees the full line-by-line trace, so every figure on the form is explainable.",
+   pts:["Completed official Form 1040 downloaded.","Tax-trace panel shows the full derivation.","Final ObservationEvent: <code>session.done</code>.","Refund ≈ <b>$4,405</b>."]}}
+];
+
+/* build steps */
+const seq=document.getElementById('seq');
+STEPS.forEach(s=>{
+  const step=document.createElement('div');step.className='step';step.dataset.id=s.id;
+  const pillHTML=s.pill?`<span class="pill ${s.pill}">${s.pill==='block'?'GUARDRAIL':s.pill==='det'?'DETERMINISTIC':'COUNTER'}</span>`:'';
+  step.innerHTML=`
+    <div class="gutter"><div class="dot">${s.id}</div><div class="spine"></div></div>
+    <div class="card ${s.special==='block'?'special-block':s.special==='det'?'special-det':''}" tabindex="0" data-id="${s.id}" data-tt="${s.tt.replace(/"/g,'&quot;')}">
+      <div class="who">${s.who}</div>
+      <h3>${s.title}${pillHTML}</h3>
+      <div class="desc">${s.desc}</div>
+      <div class="ev"><span>emits</span><b>ObservationEvent</b><span>· ${s.ev.ty}</span></div>
+    </div>`;
+  seq.appendChild(step);
+});
+
+/* tooltip */
+const tt=document.getElementById('tt');
+function moveTT(e){const pad=14;let x=e.clientX+pad,y=e.clientY+pad;const r=tt.getBoundingClientRect();
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-pad;if(y+r.height>innerHeight-8)y=e.clientY-r.height-pad;
+  tt.style.left=x+'px';tt.style.top=y+'px';}
+document.querySelectorAll('.card').forEach(c=>{
+  c.addEventListener('mouseenter',e=>{tt.textContent=c.dataset.tt;tt.classList.add('show');moveTT(e);});
+  c.addEventListener('mousemove',moveTT);
+  c.addEventListener('mouseleave',()=>tt.classList.remove('show'));
+  c.addEventListener('click',()=>openPanel(+c.dataset.id));
+  c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPanel(+c.dataset.id);}});
+});
+
+/* panel */
+const scrim=document.getElementById('scrim'),panel=document.getElementById('panel');
+function openPanel(id){
+  const s=STEPS.find(x=>x.id===id);if(!s)return;
+  document.getElementById('pTag').textContent="Step "+s.id+" · "+s.who;
+  document.getElementById('pTitle').textContent=s.title;
+  let html=`<p>${s.detail.intro}</p><h4>Detail</h4><ul>${s.detail.pts.map(p=>`<li>${p}</li>`).join('')}</ul>`;
+  if(s.detail.callout)html+=`<div class="callout ${s.detail.callout.kind}"><span class="ct">${s.detail.callout.t}</span><p>${s.detail.callout.p}</p></div>`;
+  html+=`<h4>Observation emitted</h4><div class="evchip"><b>${s.ev.ty}</b><span>${s.ev.msg}</span></div>`;
+  document.getElementById('pBody').innerHTML=html;
+  scrim.classList.add('open');panel.classList.add('open');tt.classList.remove('show');
+}
+function closePanel(){scrim.classList.remove('open');panel.classList.remove('open');}
+document.getElementById('closeb').onclick=closePanel;scrim.onclick=closePanel;
+addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+
+/* playback */
+const feed=document.getElementById('feed'),prog=document.getElementById('prog');
+let cursor=0,timer=null,t0=Date.now();
+function fmtTs(){const ms=Date.now()-t0;return (ms/1000).toFixed(2).padStart(6,'0');}
+function clearFeed(){feed.innerHTML='';t0=Date.now();}
+function paintActive(){
+  document.querySelectorAll('.step').forEach((st,i)=>{
+    st.classList.remove('active','done','dim');
+    if(i<cursor)st.classList.add('done');
+    else if(i===cursor)st.classList.add('active');
+    else st.classList.add('dim');
+  });
+  prog.textContent=Math.min(cursor,9)+' / 9 steps';
+}
+function emit(s){
+  const cls=s.pill==='block'?'block':s.pill==='det'?'det':'';
+  const row=document.createElement('div');row.className='row '+cls;
+  row.innerHTML=`<span class="ts">${fmtTs()}</span> <span class="ty">${s.ev.ty}</span> — <span class="msg">${s.ev.msg}</span>`;
+  feed.appendChild(row);feed.scrollTop=feed.scrollHeight;
+}
+function doStep(){
+  if(cursor===0)clearFeed();
+  if(cursor>=STEPS.length){stopPlay();cursor=STEPS.length;paintActive();
+    const r=document.createElement('div');r.className='row';r.innerHTML='<span class="ts">'+fmtTs()+'</span> <span class="ty" style="color:#7fcaa6">✓ session complete</span>';feed.appendChild(r);feed.scrollTop=feed.scrollHeight;return;}
+  const s=STEPS[cursor];
+  document.querySelectorAll('.step').forEach((st,i)=>{st.classList.toggle('active',i===cursor);st.classList.toggle('done',i<cursor);st.classList.toggle('dim',i>cursor);});
+  document.querySelectorAll('.step')[cursor].scrollIntoView({behavior:'smooth',block:'center'});
+  emit(s);prog.textContent=(cursor+1)+' / 9 steps';cursor++;
+}
+function startPlay(){
+  if(timer)return;
+  if(cursor>=STEPS.length){cursor=0;clearFeed();}
+  document.getElementById('play').textContent='❚❚ Pause';
+  timer=setInterval(()=>{ if(cursor>=STEPS.length){doStep();stopPlay();}else doStep(); },1100);
+  doStep();
+}
+function stopPlay(){clearInterval(timer);timer=null;document.getElementById('play').textContent='▶ Play session';}
+document.getElementById('play').onclick=()=>{timer?stopPlay():startPlay();};
+document.getElementById('step').onclick=()=>{stopPlay();doStep();};
+document.getElementById('reset').onclick=()=>{stopPlay();cursor=0;feed.innerHTML='<div class="empty">Press “Play session” — ObservationEvents will stream here over SSE as each node fires.</div>';document.querySelectorAll('.step').forEach(st=>st.classList.remove('active','done','dim'));prog.textContent='0 / 9 steps';};
+</script>
+</body>
+</html>

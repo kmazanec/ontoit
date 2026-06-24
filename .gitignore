@@ -1,0 +1,22 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Build artifacts
+dist/
+build/
+
+# Claude Code session scratch + autonomous build worktrees
+.claude/
+.cookbook-memory/
+
+# OS
+.DS_Store

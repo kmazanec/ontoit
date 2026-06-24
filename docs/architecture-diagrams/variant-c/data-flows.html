@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — Filing Session Data Flow</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2933; --ink-soft:#52606d;
+    --line:#d2d6dc; --accent:#3b5b7a; --accent-soft:#e3ebf2;
+    --good:#3f7a5a; --warn:#9a6a2f; --code-bg:#1e2530; --code-ink:#d7e0ea;
+    --shadow:0 1px 3px rgba(20,30,45,.10),0 6px 18px rgba(20,30,45,.06);
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  header.top{padding:18px 26px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
+  header.top .eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.16em}
+  header.top .sub{color:var(--ink-soft);font-size:13px}
+  nav.variants{margin-left:auto;display:flex;gap:8px;font-family:var(--mono);font-size:12px}
+  nav.variants a{text-decoration:none;color:var(--ink-soft);border:1px solid var(--line);padding:5px 10px;border-radius:6px;background:var(--bg)}
+  nav.variants a.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:0;height:calc(100% - 67px)}
+  .stage{position:relative;overflow:auto;padding:22px 26px}
+  .stage-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .stage-head h2{font-size:15px;margin:0;font-weight:600}
+  .stage-head p{margin:0;color:var(--ink-soft);font-size:13px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 14px;font-size:12px;color:var(--ink-soft)}
+  .legend .chip{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+  .legend .dot{width:10px;height:10px;border-radius:50%}
+  .diagram-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px;overflow:auto}
+  .mermaid{display:flex;justify-content:center}
+  .mermaid text.messageText{cursor:pointer}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:10px}
+  /* step rail (interaction beyond mermaid hit-testing) */
+  .rail{margin:16px 0 0;display:flex;flex-direction:column;gap:6px}
+  .rail .step{
+    display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;
+    background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px;cursor:pointer;
+    font:inherit;color:inherit
+  }
+  .rail .step:hover{border-color:var(--accent);background:#fbfdff}
+  .rail .step.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .rail .num{font-family:var(--mono);font-size:11px;color:#fff;background:var(--accent);border-radius:6px;padding:2px 7px;margin-top:1px}
+  .rail .step.block .num{background:var(--warn)}
+  .rail .step.calc .num{background:var(--good)}
+  .rail .label{font-size:13.5px}
+  .rail .label small{display:block;color:var(--ink-soft);font-size:12px;font-family:var(--mono);margin-top:2px}
+  aside.side{background:var(--panel);border-left:1px solid var(--line);padding:22px 22px 40px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+  aside .side-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  aside h3{margin:0;font-size:17px}
+  aside .tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:999px;width:max-content;border:1px solid #c5d6e4;background:var(--accent-soft);color:var(--accent)}
+  aside .tag.block{background:#fbf0e2;border-color:#e3c79c;color:var(--warn)}
+  aside .tag.calc{background:#e4f0e9;border-color:#a9d0bb;color:var(--good)}
+  aside .body p{margin:0 0 10px;color:var(--ink-soft);font-size:13.5px}
+  aside .body strong{color:var(--ink)}
+  aside .evt{border-top:1px dashed var(--line);padding-top:12px;font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  aside .evt code{color:var(--accent)}
+  aside .empty{color:var(--ink-soft);font-size:13.5px;font-style:italic}
+  details.src{margin:18px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  details.src summary{cursor:pointer;padding:11px 16px;font-family:var(--mono);font-size:12.5px;color:var(--accent);list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  details.src summary::-webkit-details-marker{display:none}
+  details.src summary::before{content:"▸";color:var(--ink-soft)}
+  details.src[open] summary::before{content:"▾"}
+  details.src pre{margin:0;padding:16px;background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:12px;line-height:1.55;overflow:auto}
+  .fallback{display:none;padding:14px;border:1px dashed var(--warn);border-radius:10px;color:var(--warn);background:#fbf4e9;font-size:13px}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}aside.side{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <div class="eyebrow">OntoIt · Architecture</div>
+    <h1>Filing Session — Data Flow</h1>
+  </div>
+  <span class="sub">One W-2 in, one official 1040 out — every step emits an ObservationEvent.</span>
+  <nav class="variants">
+    <a href="modules.html">modules</a>
+    <a class="active" href="data-flows.html">data-flows</a>
+    <a href="agent-graph.html">agent-graph</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <section class="stage">
+    <div class="stage-head">
+      <h2>End-to-end filing sequence</h2>
+      <p>Read top to bottom. Click a step (diagram or rail) for what it does and the event it emits.</p>
+    </div>
+    <div class="legend">
+      <span class="chip"><span class="dot" style="background:#3b5b7a"></span> normal step</span>
+      <span class="chip"><span class="dot" style="background:#9a6a2f"></span> guardrail — edge blocks Q#6</span>
+      <span class="chip"><span class="dot" style="background:#3f7a5a"></span> deterministic compute (no LLM)</span>
+      <span class="chip"><span class="sw" style="background:#e2eef0"></span> every step → ObservationEvent over SSE</span>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid" id="diagram">
+sequenceDiagram
+  autonumber
+  participant U as User (Web UI)
+  participant API as FastAPI
+  participant G as LangGraph
+  participant CL as Claude
+  participant TX as Tax engine
+  participant SSE as Observation / SSE
+
+  Note over U,SSE: Every interaction below also emits an ObservationEvent → SSE → live panel
+  U->>API: Upload W-2 (or pick bundled sample)
+  API->>G: invoke(state) — state lives in signed cookie
+  G->>CL: extract_w2 — pdfplumber text → Claude Vision
+  CL-->>G: W-2 JSON + per-field confidence
+  G->>G: validate — schema + Box2<Box1 + SS ≈ 6.2%
+  Note over G,CL: Up to 5 warm questions (status · dependents · confirm figures)
+  G->>CL: ask question (counter++ in signed state)
+  CL-->>U: warm, human-toned question
+  U-->>G: answer
+  rect rgb(251,240,226)
+    G--xCL: EDGE BLOCKS Q#35;6 — questions_asked &gt;= 5
+    Note over G: limit is a graph edge, not a prompt request
+  end
+  G->>TX: compute_tax(validated inputs, 2025 params)
+  TX-->>G: TaxResult + line-by-line trace + credit reasons
+  G->>TX: fill_1040 — PyMuPDF fill + bake
+  TX-->>API: flattened 2025 Form 1040 (PDF bytes)
+  API-->>U: download official IRS 2025 Form 1040
+      </div>
+      <div class="fallback" id="fallback">
+        Mermaid could not load (offline / blocked CDN). The full diagram source is in
+        <strong>View mermaid source</strong> below, and the interactive step rail beneath
+        the diagram still works.
+      </div>
+      <p class="hint">Highlighted: Q#6 is blocked by a graph <em>edge</em>; credits are computed in code and shown <em>with reasons</em>.</p>
+
+      <div class="rail" id="rail"></div>
+    </div>
+
+    <details class="src">
+      <summary>View mermaid source — diagrams as code (maintainable)</summary>
+      <pre id="srcDump"></pre>
+    </details>
+  </section>
+
+  <aside class="side" id="side">
+    <div class="side-eyebrow">Step detail</div>
+    <h3 id="sTitle">Select a step</h3>
+    <div id="sTag"></div>
+    <div class="body" id="sBody">
+      <p class="empty">Click any step to see what happens, why, and the ObservationEvent it emits over SSE.</p>
+    </div>
+    <div class="evt" id="sEvt" style="display:none"></div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+const STEPS = [
+  {n:1,kind:"",label:"Upload W-2 (or bundled sample)",sub:"multipart → FastAPI",
+   body:`<p><strong>What.</strong> The user drops a W-2 PDF/image, or picks the bundled realistic
+     sample (~$40k earner). No account, no upload store — the file is read into the request only.</p>
+     <p><strong>Why.</strong> A bundled sample guarantees a judge can run the whole flow end-to-end
+     with zero setup.</p>`,
+   evt:`<code>w2.received</code> · {source: upload|sample, bytes}`},
+  {n:2,kind:"",label:"FastAPI invokes the graph",sub:"invoke(state) — signed cookie",
+   body:`<p><strong>What.</strong> FastAPI rehydrates session state from the <strong>signed cookie</strong>
+     (messages, W-2 JSON, question counter) and calls <code>graph.invoke(state)</code>.</p>
+     <p><strong>Why.</strong> Stateless server: the cookie <em>is</em> the session, so any instance can
+     serve any turn.</p>`,
+   evt:`<code>graph.invoke</code> · {node: intake}`},
+  {n:3,kind:"",label:"extract_w2 — pdfplumber → Vision",sub:"two-stage, confidence-tagged",
+   body:`<p><strong>What.</strong> <strong>pdfplumber</strong> reads the text layer first; if the form
+     is scanned/messy, <strong>Claude Vision</strong> reads the image. Each field returns a
+     <strong>confidence</strong>.</p>
+     <p><strong>Why.</strong> Cheap-and-deterministic when possible, robust vision fallback when needed.</p>`,
+   evt:`<code>tool.extract_w2</code> · {fields, confidence[]}`},
+  {n:4,kind:"",label:"validate — schema + cross-field",sub:"Box2<Box1 · SS ≈ 6.2%",
+   body:`<p><strong>What.</strong> Schema-validates the W-2 JSON, then runs cross-field checks:
+     withholding <strong>Box 2 &lt; Box 1</strong> wages, and Social Security ≈ <strong>6.2%</strong>
+     of wages. Failures route to a confirm-question.</p>
+     <p><strong>Why.</strong> This is the Guardrails pillar at the data layer — bad extractions are
+     caught before they reach the tax math, in code, not in the prompt.</p>`,
+   evt:`<code>validate.w2</code> · {ok, checks: [box2_lt_box1, ss_rate]}`},
+  {n:5,kind:"",label:"Up to 5 warm questions",sub:"status · dependents · confirm figures",
+   body:`<p><strong>What.</strong> Claude asks at most five friendly questions — filing status,
+     dependents, and confirmation of any low-confidence figures — incrementing the
+     <strong>question counter</strong> in signed state each time.</p>
+     <p><strong>Why.</strong> The brief caps questions at 5 and demands a human tone. Counting in
+     <em>signed</em> state makes the cap tamper-proof from the client.</p>`,
+   evt:`<code>question.asked</code> · {n, topic}`},
+  {n:6,kind:"block",label:"EDGE BLOCKS Q#6",sub:"questions_asked >= 5 → no ask",
+   body:`<p><strong>What.</strong> A conditional <strong>graph edge</strong> evaluates
+     <code>questions_asked &gt;= 5</code> and routes straight to compute — the model is structurally
+     prevented from asking a sixth question.</p>
+     <p><strong>Why.</strong> This is the headline guardrail: the limit is <strong>topology in code</strong>,
+     not a sentence in the prompt the model might ignore. "It's enforced and visible," not "it's in the prompt."</p>`,
+   evt:`<code>guardrail.question_cap</code> · {questions_asked: 5, action: route_to_compute}`},
+  {n:7,kind:"calc",label:"compute_tax — deterministic",sub:"pure · Decimal · 2025 params",
+   body:`<p><strong>What.</strong> A pure function computes standard deduction → taxable income →
+     tax from the <strong>IRS 2025 Tax Table</strong> → credits → refund/owed, all in
+     <strong>Decimal</strong>.</p>
+     <p><strong>Why.</strong> LLMs are unreliable at return arithmetic (~23–32% on TaxCalcBench),
+     so the math is deterministic code the LLM never touches.</p>`,
+   calcFacts:true,
+   evt:`<code>tool.compute_tax</code> · {taxable: 28879.35, tax: 3227, refund: 4405}`},
+  {n:8,kind:"calc",label:"TaxResult + line-by-line trace",sub:"credits computed in code, with reasons",
+   body:`<p><strong>What.</strong> The engine returns a structured TaxResult <em>and</em> a
+     line-by-line trace, including each credit's value <strong>and the reason</strong> — e.g. Saver's $0
+     (income above the $39,500 Single phase-out), EITC $0 (childless limit $19,104).</p>
+     <p><strong>Why.</strong> The tax-trace panel turns the computation into something a judge can audit;
+     "credits computed in code, shown with reasons" is the proof it isn't hand-waving.</p>`,
+   evt:`<code>tax.trace</code> · {lines[], credits:[{name, amount, reason}]}`},
+  {n:9,kind:"",label:"fill_1040 — PyMuPDF + bake",sub:"fill AcroForm → flatten",
+   body:`<p><strong>What.</strong> <strong>PyMuPDF</strong> fills the official 2025 Form 1040 fields
+     from the TaxResult, then <strong>bakes</strong> (flattens) the document.</p>
+     <p><strong>Why.</strong> The output is the real IRS form; baking makes the downloaded file final
+     and consistently rendered everywhere.</p>`,
+   evt:`<code>tool.fill_1040</code> · {pages, baked: true}`},
+  {n:10,kind:"",label:"Download IRS 2025 Form 1040",sub:"PDF bytes → browser",
+   body:`<p><strong>What.</strong> FastAPI streams the flattened PDF back; the user downloads a completed
+     official 2025 Form 1040.</p>
+     <p><strong>Why.</strong> The definition of done — a real, downloadable filled form from a real W-2,
+     reached entirely through the chat.</p>`,
+   evt:`<code>form.delivered</code> · {filename: 1040-2025.pdf}`},
+];
+
+const CALC = `<div class="evt" style="border:none;padding:0;margin-top:10px">
+<div class="side-eyebrow" style="margin-bottom:8px">Bundled sample — Single, no kids</div>
+<div style="font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--ink-soft)">
+Wages (Box 1) &nbsp; <strong style="color:var(--ink);float:right">$44,629.35</strong><br/>
+− Std deduction &nbsp; <strong style="color:var(--ink);float:right">$15,750</strong><br/>
+= Taxable income &nbsp; <strong style="color:var(--ink);float:right">$28,879.35</strong><br/>
+Tax (IRS table) &nbsp; <strong style="color:var(--ink);float:right">$3,227</strong><br/>
+Withholding (Box 2) &nbsp; <strong style="color:var(--ink);float:right">$7,631.62</strong><br/>
+Refund &nbsp; <strong style="color:var(--good);float:right">≈ $4,405</strong>
+</div></div>`;
+
+const rail = document.getElementById('rail');
+function showStep(i){
+  const s = STEPS[i];
+  document.querySelectorAll('.rail .step').forEach((el,idx)=>el.classList.toggle('active',idx===i));
+  document.getElementById('sTitle').textContent = s.n+". "+s.label;
+  let tag = s.kind==='block' ? '<span class="tag block">GUARDRAIL · edge in code</span>'
+          : s.kind==='calc'  ? '<span class="tag calc">DETERMINISTIC · no LLM</span>'
+          : '<span class="tag">normal step · emits ObservationEvent</span>';
+  document.getElementById('sTag').innerHTML = tag;
+  document.getElementById('sBody').innerHTML = s.body + (s.calcFacts?CALC:'');
+  const ev = document.getElementById('sEvt');
+  ev.style.display='block';
+  ev.innerHTML = '<div class="side-eyebrow" style="margin-bottom:6px">ObservationEvent → SSE</div>'+s.evt;
+  document.getElementById('side').scrollTop=0;
+}
+STEPS.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='step '+s.kind;
+  b.innerHTML=`<span class="num">${s.n}</span><span class="label">${s.label}<small>${s.sub}</small></span>`;
+  b.onclick=()=>showStep(i);
+  rail.appendChild(b);
+});
+
+const srcEl=document.getElementById('diagram');
+const rawSrc = srcEl ? srcEl.textContent.trim() : '';
+document.getElementById('srcDump').textContent = rawSrc;
+
+const FONT='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+async function renderDiagram(){
+  if(!window.mermaid){ document.getElementById('fallback').style.display='block'; return; }
+  mermaid.initialize({
+    startOnLoad:false, securityLevel:'loose', theme:'base',
+    themeVariables:{
+      fontFamily:FONT, fontSize:'13px',
+      primaryColor:'#e3ebf2', primaryBorderColor:'#3b5b7a', primaryTextColor:'#1f2933',
+      lineColor:'#90a0b0',
+      actorBkg:'#e3ebf2', actorBorder:'#3b5b7a', actorTextColor:'#1f2933',
+      signalColor:'#52606d', signalTextColor:'#1f2933',
+      noteBkgColor:'#fbfcfd', noteBorderColor:'#d2d6dc', noteTextColor:'#52606d'
+    }
+  });
+  try{
+    const {svg,bindFunctions} = await mermaid.render('ontoit-seq', rawSrc);
+    srcEl.innerHTML = svg;
+    if(bindFunctions) bindFunctions(srcEl);
+  }catch(err){
+    console.error(err);
+    document.getElementById('fallback').style.display='block';
+  }
+}
+renderDiagram();
+</script>
+</body>
+</html>

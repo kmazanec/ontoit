@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — Component Map</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2933; --ink-soft:#52606d;
+    --line:#d2d6dc; --accent:#3b5b7a; --accent-soft:#e3ebf2;
+    --good:#3f7a5a; --warn:#9a6a2f; --code-bg:#1e2530; --code-ink:#d7e0ea;
+    --shadow:0 1px 3px rgba(20,30,45,.10),0 6px 18px rgba(20,30,45,.06);
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  header.top{
+    padding:18px 26px;background:var(--panel);border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;gap:16px;flex-wrap:wrap
+  }
+  header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
+  header.top .eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.16em}
+  header.top .sub{color:var(--ink-soft);font-size:13px}
+  nav.variants{margin-left:auto;display:flex;gap:8px;font-family:var(--mono);font-size:12px}
+  nav.variants a{
+    text-decoration:none;color:var(--ink-soft);border:1px solid var(--line);
+    padding:5px 10px;border-radius:6px;background:var(--bg)
+  }
+  nav.variants a.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:0;height:calc(100% - 67px)}
+  .stage{position:relative;overflow:auto;padding:22px 26px}
+  .stage-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .stage-head h2{font-size:15px;margin:0;font-weight:600}
+  .stage-head p{margin:0;color:var(--ink-soft);font-size:13px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 14px;font-size:12px;color:var(--ink-soft)}
+  .legend .chip{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+  .diagram-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);padding:18px;overflow:auto
+  }
+  .mermaid{display:flex;justify-content:center}
+  .mermaid .node.clickable{cursor:pointer}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:10px}
+  /* side panel */
+  aside.side{
+    background:var(--panel);border-left:1px solid var(--line);padding:22px 22px 40px;
+    overflow:auto;display:flex;flex-direction:column;gap:14px
+  }
+  aside .side-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  aside h3{margin:0;font-size:17px}
+  aside .adr-badge{
+    display:inline-block;font-family:var(--mono);font-size:11px;background:var(--accent-soft);
+    color:var(--accent);border:1px solid #c5d6e4;padding:3px 8px;border-radius:999px;width:max-content
+  }
+  aside .body p{margin:0 0 10px;color:var(--ink-soft);font-size:13.5px}
+  aside .body strong{color:var(--ink)}
+  aside .facts{border-top:1px dashed var(--line);padding-top:12px}
+  aside .facts dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
+  aside .facts dt{font-family:var(--mono);color:var(--ink-soft)}
+  aside .facts dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  aside .empty{color:var(--ink-soft);font-size:13.5px;font-style:italic}
+  details.src{
+    margin:18px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden
+  }
+  details.src summary{
+    cursor:pointer;padding:11px 16px;font-family:var(--mono);font-size:12.5px;color:var(--accent);
+    list-style:none;display:flex;align-items:center;gap:8px;user-select:none
+  }
+  details.src summary::-webkit-details-marker{display:none}
+  details.src summary::before{content:"▸";color:var(--ink-soft)}
+  details.src[open] summary::before{content:"▾"}
+  details.src pre{
+    margin:0;padding:16px;background:var(--code-bg);color:var(--code-ink);
+    font-family:var(--mono);font-size:12px;line-height:1.55;overflow:auto
+  }
+  .fallback{display:none;padding:14px;border:1px dashed var(--warn);border-radius:10px;color:var(--warn);background:#fbf4e9;font-size:13px}
+  .fallback code{font-family:var(--mono)}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}aside.side{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <div class="eyebrow">OntoIt · Architecture</div>
+    <h1>Component Map</h1>
+  </div>
+  <span class="sub">Agentic tax-filing assistant — what runs where, and which ADR decided it.</span>
+  <nav class="variants">
+    <a class="active" href="modules.html">modules</a>
+    <a href="data-flows.html">data-flows</a>
+    <a href="agent-graph.html">agent-graph</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <section class="stage">
+    <div class="stage-head">
+      <h2>System components</h2>
+      <p>High-level first — click any node for its purpose and the ADR that decided it.</p>
+    </div>
+    <div class="legend">
+      <span class="chip"><span class="sw" style="background:#e3ebf2"></span> UI / transport</span>
+      <span class="chip"><span class="sw" style="background:#dfe9e2"></span> deterministic code</span>
+      <span class="chip"><span class="sw" style="background:#f3e6d4"></span> LLM-driven</span>
+      <span class="chip"><span class="sw" style="background:#e7e1ee"></span> state / data</span>
+      <span class="chip"><span class="sw" style="background:#e2eef0"></span> observation</span>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid" id="diagram">
+flowchart TB
+  classDef ui fill:#e3ebf2,stroke:#3b5b7a,stroke-width:1px,color:#1f2933;
+  classDef det fill:#dfe9e2,stroke:#3f7a5a,stroke-width:1px,color:#1f2933;
+  classDef llm fill:#f3e6d4,stroke:#9a6a2f,stroke-width:1px,color:#1f2933;
+  classDef data fill:#e7e1ee,stroke:#6b5b8a,stroke-width:1px,color:#1f2933;
+  classDef obs fill:#e2eef0,stroke:#3a7a86,stroke-width:1px,color:#1f2933;
+
+  UI["Web UI<br/><small>chat · live observation · tax-trace</small>"]:::ui
+  API["FastAPI<br/><small>serves UI · SSE · signed-cookie session · no server store</small>"]:::ui
+  COOKIE["Signed Cookie<br/><small>messages · W-2 JSON · question counter<br/>HttpOnly · Secure · SameSite=Strict</small>"]:::data
+
+  subgraph AGENT["LangGraph agent — Claude drives, graph enforces"]
+    direction TB
+    GRAPH["LangGraph runtime<br/><small>nodes + conditional edges</small>"]:::llm
+    CLAUDE["Anthropic Claude<br/><small>LLM + W-2 vision</small>"]:::llm
+  end
+
+  subgraph TOOLS["Tools (real actions)"]
+    direction TB
+    T_EXTRACT["extract_w2<br/><small>pdfplumber → Claude Vision · confidence</small>"]:::llm
+    T_COMPUTE["compute_tax<br/><small>deterministic · pure · Decimal</small>"]:::det
+    T_FILL["fill_1040<br/><small>PyMuPDF fill + bake</small>"]:::det
+  end
+
+  PARAMS["2025 tax params + IRS Tax Table<br/><small>cited constants</small>"]:::data
+  OBS["ObservationEvent emitter<br/><small>→ logs · /health · SSE</small>"]:::obs
+
+  UI <-->|"HTTP + SSE"| API
+  API <-->|"read/write signed state"| COOKIE
+  API -->|"invoke(state)"| GRAPH
+  GRAPH <-->|"messages / tool calls"| CLAUDE
+  GRAPH --> T_EXTRACT
+  GRAPH --> T_COMPUTE
+  GRAPH --> T_FILL
+  T_EXTRACT --> CLAUDE
+  T_COMPUTE --> PARAMS
+  T_FILL --> PARAMS
+  GRAPH -. emits .-> OBS
+  T_EXTRACT -. emits .-> OBS
+  T_COMPUTE -. emits .-> OBS
+  T_FILL -. emits .-> OBS
+  OBS -->|"stream"| API
+
+  click UI nodeClick
+  click API nodeClick
+  click COOKIE nodeClick
+  click GRAPH nodeClick
+  click CLAUDE nodeClick
+  click T_EXTRACT nodeClick
+  click T_COMPUTE nodeClick
+  click T_FILL nodeClick
+  click PARAMS nodeClick
+  click OBS nodeClick
+      </div>
+      <div class="fallback" id="fallback">
+        Mermaid could not load (offline / blocked CDN). The diagram source is in
+        <strong>View mermaid source</strong> below — it renders anywhere a mermaid
+        renderer is available. The interactive side panel still works via the node
+        list under the diagram.
+        <div id="fallbackNodes" style="margin-top:10px"></div>
+      </div>
+      <p class="hint">Tip: click a box to load its rationale in the panel →</p>
+    </div>
+
+    <details class="src">
+      <summary>View mermaid source — diagrams as code (maintainable)</summary>
+      <pre id="srcDump"></pre>
+    </details>
+  </section>
+
+  <aside class="side" id="side">
+    <div class="side-eyebrow">Node detail</div>
+    <h3 id="sTitle">Select a component</h3>
+    <div id="sBadge"></div>
+    <div class="body" id="sBody">
+      <p class="empty">Click any node in the component map to see its purpose and the
+      Architecture Decision Record (ADR-001…013) that drove the decision.</p>
+    </div>
+    <div class="facts" id="sFacts" style="display:none"></div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+/* ---------- node rationale (purpose + deciding ADR) ---------- */
+const NODES = {
+  UI:{t:"Web UI",adr:"ADR-009 — Minimal three-pane web UI",
+    body:`<p><strong>Purpose.</strong> A single-page chat plus two read-only side panels:
+      a <strong>live observation</strong> feed (the agent's decisions as they happen) and a
+      <strong>tax-trace</strong> panel (line-by-line 1040 reasoning). UI stays deliberately thin —
+      the brief explicitly does not reward visual polish.</p>
+      <p><strong>Why.</strong> Surfacing the observation trail and the tax trace in the UI turns
+      two of the four pillars (Observation, Guardrails) from "in the logs" into "a judge can watch it."</p>`},
+  API:{t:"FastAPI",adr:"ADR-002 — FastAPI + SSE, stateless server",
+    body:`<p><strong>Purpose.</strong> Serves the static UI, exposes the chat endpoint and an
+      <strong>SSE stream</strong> for observation events, and carries all session state in a
+      <strong>signed cookie</strong> — there is <strong>no server-side store</strong>.</p>
+      <p><strong>Why.</strong> Stateless server = trivial free-tier deploy (Render), no DB to provision,
+      horizontally restartable. SSE (not WebSockets) is the simplest one-way live feed.</p>`},
+  COOKIE:{t:"Signed Cookie (session)",adr:"ADR-003 — Signed-cookie session, no DB",
+    body:`<p><strong>Purpose.</strong> Holds the entire conversation: message history, extracted
+      <strong>W-2 JSON</strong>, and the <strong>question counter</strong>. The server
+      verifies and decrypts it on every request. Flags: <strong>HttpOnly · Secure · SameSite=Strict</strong>.</p>
+      <p><strong>Why.</strong> The taxpayer profile is tiny and single-session; a signed cookie removes
+      the entire database tier while keeping state tamper-evident. The question counter living in signed
+      state is what makes the "≤5 questions" guardrail un-spoofable from the client.</p>`},
+  GRAPH:{t:"LangGraph runtime",adr:"ADR-004 — LangGraph for graph-enforced control",
+    body:`<p><strong>Purpose.</strong> The agent's control plane: typed state, named nodes
+      (intake → extract → validate → collect → compute → fill → done) and <strong>conditional edges</strong>.
+      Claude proposes; the graph disposes.</p>
+      <p><strong>Why.</strong> Limits become <strong>edges in code</strong>, not polite requests in a prompt.
+      The "no 6th question" rule and the re-ask loop are graph topology, so they hold even if the model misbehaves.</p>`},
+  CLAUDE:{t:"Anthropic Claude",adr:"ADR-005 — Claude as driver + W-2 vision",
+    body:`<p><strong>Purpose.</strong> Drives the warm conversation and reads the W-2 image via
+      <strong>vision</strong>. One provider for both language and document understanding.</p>
+      <p><strong>Why.</strong> Strong instruction-following for tone (the "feels human" bar) and native
+      multimodal vision for the W-2. Crucially, the model <strong>never does tax math</strong> —
+      LLM arithmetic on returns benchmarks at ~23–32% (TaxCalcBench), so calculation is code.</p>`},
+  T_EXTRACT:{t:"Tool · extract_w2",adr:"ADR-006 — Two-stage W-2 extraction",
+    body:`<p><strong>Purpose.</strong> Pulls W-2 fields: <strong>pdfplumber</strong> first (cheap text
+      layer), then <strong>Claude Vision</strong> for scanned/messy forms, each field tagged with a
+      <strong>confidence</strong>.</p>
+      <p><strong>Why.</strong> Text-first is fast and deterministic when the PDF has a text layer; vision
+      is the fallback for images. Confidence scores feed validation and let the agent confirm shaky figures
+      within the question budget.</p>`},
+  T_COMPUTE:{t:"Tool · compute_tax",adr:"ADR-007 — Deterministic tax engine (Decimal)",
+    body:`<p><strong>Purpose.</strong> A <strong>pure, deterministic</strong> function over the validated
+      inputs and the 2025 params: standard deduction, taxable income, tax from the <strong>IRS Tax Table</strong>,
+      credits, refund/owed. Uses <strong>Decimal</strong> — no floats, no LLM.</p>
+      <p><strong>Why.</strong> Tax law is rules, not vibes. A pure function is testable, reproducible, and citable.
+      Every credit is computed in code and returned <strong>with a reason</strong> (e.g. why $0).</p>`,
+    facts:true},
+  T_FILL:{t:"Tool · fill_1040",adr:"ADR-008 — PyMuPDF fill + bake",
+    body:`<p><strong>Purpose.</strong> Takes the official 2025 Form 1040 PDF, fills the AcroForm fields
+      from the TaxResult, then <strong>bakes</strong> (flattens) the form so the downloaded file is final
+      and not editable.</p>
+      <p><strong>Why.</strong> Filling the real IRS PDF (vs. drawing our own) means the output is the actual
+      form a judge expects. Baking prevents accidental edits and renders consistently everywhere.</p>`},
+  PARAMS:{t:"2025 tax params + IRS Tax Table",adr:"ADR-010 — Cited constants, single source",
+    body:`<p><strong>Purpose.</strong> One module of 2025 constants — standard deduction
+      (<strong>$15,750</strong> Single / <strong>$31,500</strong> MFJ), the IRS Tax Table, and credit
+      thresholds — each with a citation comment.</p>
+      <p><strong>Why.</strong> Centralizing and citing the numbers makes the engine auditable and makes
+      "tax year 2025" a non-negotiable constant rather than something the model could drift on.</p>`},
+  OBS:{t:"ObservationEvent emitter",adr:"ADR-011 — Structured observation events",
+    body:`<p><strong>Purpose.</strong> Every meaningful step emits a structured
+      <strong>ObservationEvent</strong>, fanned out to <strong>logs</strong>, the <strong>/health</strong>
+      endpoint, and the <strong>SSE</strong> stream the UI subscribes to.</p>
+      <p><strong>Why.</strong> Makes the Observation pillar concrete: one event type, three sinks. A judge
+      watches decisions live in the browser; an operator reads the same events in logs.</p>`},
+};
+
+const FACTS = `<dl>
+  <dt>Wages (Box 1)</dt><dd>$44,629.35</dd>
+  <dt>Withholding (Box 2)</dt><dd>$7,631.62</dd>
+  <dt>Std deduction</dt><dd>$15,750</dd>
+  <dt>Taxable income</dt><dd>$28,879.35</dd>
+  <dt>Tax (IRS table)</dt><dd>$3,227</dd>
+  <dt>Saver's credit</dt><dd>$0</dd>
+  <dt>EITC</dt><dd>$0</dd>
+  <dt>Refund</dt><dd>≈ $4,405</dd>
+</dl>
+<p style="margin:10px 0 0;font-size:12px;color:var(--ink-soft)">
+Single, no kids. Tax read from the <strong>IRS 2025 Tax Table</strong> (not bracket math).
+Saver's phases out above $39,500 Single; EITC childless limit $19,104 — both credits $0,
+shown <em>with reasons</em>.</p>`;
+
+/* ---------- side-panel update ---------- */
+function showNode(id){
+  const n = NODES[id]; if(!n) return;
+  document.getElementById('sTitle').textContent = n.t;
+  document.getElementById('sBadge').innerHTML = '<span class="adr-badge">'+n.adr+'</span>';
+  document.getElementById('sBody').innerHTML = n.body;
+  const f = document.getElementById('sFacts');
+  if(n.facts){ f.style.display='block'; f.innerHTML = '<div class="side-eyebrow" style="margin-bottom:8px">Worked example — bundled sample filer</div>'+FACTS; }
+  else { f.style.display='none'; f.innerHTML=''; }
+  document.getElementById('side').scrollTop = 0;
+}
+window.nodeClick = showNode; // mermaid click target
+
+/* ---------- mermaid init + graceful fallback ---------- */
+const srcEl = document.getElementById('diagram');
+const rawSrc = srcEl ? srcEl.textContent.trim() : '';
+document.getElementById('srcDump').textContent = rawSrc;
+
+function buildFallbackList(){
+  const wrap = document.getElementById('fallbackNodes');
+  wrap.innerHTML='';
+  Object.keys(NODES).forEach(id=>{
+    const b=document.createElement('button');
+    b.textContent=NODES[id].t;
+    b.style.cssText='margin:3px;padding:5px 9px;font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer';
+    b.onclick=()=>showNode(id);
+    wrap.appendChild(b);
+  });
+}
+
+function wireMermaidClicks(){
+  // mermaid security blocks inline click handlers under strict settings; ensure ours fire
+  document.querySelectorAll('.mermaid .node').forEach(node=>{
+    node.classList.add('clickable');
+  });
+}
+
+const FONT='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+async function renderDiagram(){
+  if(!window.mermaid){ document.getElementById('fallback').style.display='block'; buildFallbackList(); return; }
+  mermaid.initialize({
+    startOnLoad:false, securityLevel:'loose', theme:'base',
+    themeVariables:{
+      fontFamily:FONT, fontSize:'13px',
+      primaryColor:'#e3ebf2', primaryBorderColor:'#3b5b7a', primaryTextColor:'#1f2933',
+      lineColor:'#90a0b0', clusterBkg:'#fbfcfd', clusterBorder:'#d2d6dc',
+      tertiaryColor:'#fbfcfd'
+    }
+  });
+  try{
+    const {svg,bindFunctions} = await mermaid.render('ontoit-modules', rawSrc);
+    srcEl.innerHTML = svg;
+    if(bindFunctions) bindFunctions(srcEl);
+    wireMermaidClicks();
+  }catch(err){
+    console.error(err);
+    document.getElementById('fallback').style.display='block';
+    buildFallbackList();
+  }
+}
+renderDiagram();
+</script>
+</body>
+</html>

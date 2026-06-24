@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OntoIt — Architecture Explainers</title>
+<style>
+  :root { --navy:#1a2b4a; --slate:#5a6b82; --line:#e2e6ec; --accent:#c0532a; --bg:#f7f8fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--navy); background:var(--bg); line-height:1.5; }
+  header { padding:48px 32px 24px; max-width:1100px; margin:0 auto; }
+  .eyebrow { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0 0 8px; }
+  h1 { margin:0 0 12px; font-size:30px; }
+  p.lede { margin:0; color:var(--slate); max-width:60ch; }
+  main { max-width:1100px; margin:0 auto; padding:8px 32px 64px; }
+  table { width:100%; border-collapse:collapse; margin-top:24px; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th,td { text-align:left; padding:14px 16px; border-bottom:1px solid var(--line); font-size:14px; vertical-align:top; }
+  th { background:#fbfcfd; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--slate); }
+  tr:last-child td { border-bottom:none; }
+  td.variant { font-weight:600; white-space:nowrap; }
+  td .style { display:block; color:var(--slate); font-size:12.5px; margin-top:3px; }
+  a.btn { display:inline-block; padding:5px 11px; margin:0 6px 4px 0; border:1px solid var(--line); border-radius:6px; text-decoration:none; color:var(--navy); font-size:13px; background:#fff; transition:.15s; }
+  a.btn:hover { border-color:var(--accent); color:var(--accent); }
+  .note { margin-top:28px; padding:16px 18px; background:#fff; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:6px; font-size:13.5px; color:var(--slate); }
+  .note b { color:var(--navy); }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; background:#eef1f5; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow">OntoIt · Architecture</p>
+  <h1>Architecture explainers — five visual takes</h1>
+  <p class="lede">Five independently-designed interactive explainers of the same system. Each has three views: <b>modules</b> (what the pieces are), <b>data flows</b> (a full filing session), and <b>agent graph</b> (the LangGraph internals and where the four pillars are enforced). Browse them, then keep the one(s) you like.</p>
+</header>
+<main>
+  <table>
+    <thead><tr><th>Variant</th><th>Three views</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="variant">A<span class="style">Consultant deck — navy/slate, restrained, animated SSE feed</span></td>
+        <td>
+          <a class="btn" href="variant-a/modules.html">Modules</a>
+          <a class="btn" href="variant-a/data-flows.html">Data flows</a>
+          <a class="btn" href="variant-a/agent-graph.html">Agent graph</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="variant">B<span class="style">Technical product / Stripe-docs — layer color-coding, detail drawers, swimlanes</span></td>
+        <td>
+          <a class="btn" href="variant-b/modules.html">Modules</a>
+          <a class="btn" href="variant-b/data-flows.html">Data flows</a>
+          <a class="btn" href="variant-b/agent-graph.html">Agent graph</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="variant">C<span class="style">Mermaid-as-code — beautifully themed, click-to-explain side panel, view-source (needs network for mermaid CDN; degrades gracefully)</span></td>
+        <td>
+          <a class="btn" href="variant-c/modules.html">Modules</a>
+          <a class="btn" href="variant-c/data-flows.html">Data flows</a>
+          <a class="btn" href="variant-c/agent-graph.html">Agent graph</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="variant">D<span class="style">Executive one-pager — bold headline takeaway + key-fact chips, one screen</span></td>
+        <td>
+          <a class="btn" href="variant-d/modules.html">Modules</a>
+          <a class="btn" href="variant-d/data-flows.html">Data flows</a>
+          <a class="btn" href="variant-d/agent-graph.html">Agent graph</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="variant">E<span class="style">Guided walkthrough — Next/Prev stepper over a fixed diagram, learn-it-first-time</span></td>
+        <td>
+          <a class="btn" href="variant-e/modules.html">Modules</a>
+          <a class="btn" href="variant-e/data-flows.html">Data flows</a>
+          <a class="btn" href="variant-e/agent-graph.html">Agent graph</a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">
+    All variants are single self-contained HTML files (open directly in a browser — no server needed). Variant C fetches the <code>mermaid</code> library from a CDN and shows a fallback if offline; A, B, D, E are fully offline. Source of truth for the architecture is <code>docs/ARCHITECTURE.md</code> + <code>docs/adrs/</code>.
+  </div>
+</main>
+</body>
+</html>

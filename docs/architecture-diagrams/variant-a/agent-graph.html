@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — LangGraph Agent Structure</title>
+<style>
+  :root{
+    --navy:#0f2a43;--navy-2:#163a5c;--slate:#5a6b7b;--slate-light:#8696a6;
+    --line:#d6dde3;--line-soft:#e7ecf0;--paper:#fff;--canvas:#f4f6f8;
+    --accent:#c0532a;--accent-soft:#f7ece6;--ink:#1d2b36;
+    --p1:#2f6f8f;--p1s:#e6f0f4;   /* chat loop */
+    --p2:#5b4a86;--p2s:#efeaf5;   /* tools */
+    --p3:#a23a2c;--p3s:#f6e6e3;   /* guardrails */
+    --p4:#3f8a6e;--p4s:#e6f1ec;   /* observation */
+    --shadow:0 1px 2px rgba(15,42,67,.06),0 8px 28px rgba(15,42,67,.08);
+    --mono:"SFMono-Regular",ui-monospace,"Menlo","Consolas",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1240px;margin:0 auto;padding:40px 28px 96px}
+  .nav{display:flex;gap:8px;margin-bottom:18px}
+  .nav a{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 11px;color:var(--slate);background:var(--paper)}
+  .nav a.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .nav a:hover{border-color:var(--navy-2);color:var(--navy)}
+  header.deck{border-bottom:2px solid var(--navy);padding-bottom:18px;margin-bottom:8px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1{font-size:30px;line-height:1.12;margin:2px 0 0;letter-spacing:-.01em;color:var(--navy)}
+  .sub{color:var(--slate);font-size:15px;max-width:74ch;line-height:1.5;margin-top:6px}
+
+  .keyline{display:flex;gap:12px;align-items:flex-start;background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:13px 16px;margin:20px 0 6px;box-shadow:var(--shadow)}
+  .keyline .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);white-space:nowrap;padding-top:2px}
+  .keyline p{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
+  .keyline b{color:var(--navy)}
+
+  /* pillar toggles */
+  .pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 18px}
+  @media(max-width:880px){.pillars{grid-template-columns:repeat(2,1fr)}}
+  .pillar{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:12px 13px;cursor:pointer;transition:.16s;box-shadow:var(--shadow);position:relative;outline:none}
+  .pillar:hover{transform:translateY(-2px)}
+  .pillar .pn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--slate-light);text-transform:uppercase}
+  .pillar h3{margin:4px 0 0;font-size:14.5px;display:flex;align-items:center;gap:8px}
+  .pillar h3 .swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .pillar .pd{font-size:12px;color:var(--slate);line-height:1.4;margin-top:5px}
+  .pillar .enf{font-family:var(--mono);font-size:9.5px;margin-top:8px;color:var(--slate-light);letter-spacing:.03em}
+  .pillar[data-p="1"]{border-top:3px solid var(--p1)} .pillar[data-p="1"] .swatch{background:var(--p1)}
+  .pillar[data-p="2"]{border-top:3px solid var(--p2)} .pillar[data-p="2"] .swatch{background:var(--p2)}
+  .pillar[data-p="3"]{border-top:3px solid var(--p3)} .pillar[data-p="3"] .swatch{background:var(--p3)}
+  .pillar[data-p="4"]{border-top:3px solid var(--p4)} .pillar[data-p="4"] .swatch{background:var(--p4)}
+  .pillar.on{box-shadow:0 0 0 2px currentColor,var(--shadow)}
+  .pillar[data-p="1"].on{color:var(--p1)} .pillar[data-p="2"].on{color:var(--p2)}
+  .pillar[data-p="3"].on{color:var(--p3)} .pillar[data-p="4"].on{color:var(--p4)}
+  .pillar.on .pd,.pillar.on .pn{color:inherit;opacity:.85}
+  .pillar .badge{position:absolute;top:11px;right:12px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;padding:2px 7px;border-radius:20px;border:1px solid currentColor;opacity:.7}
+
+  .graphwrap{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:8px;position:relative;overflow:hidden}
+  svg{width:100%;height:auto;display:block;font-family:var(--sans)}
+  .gnode{cursor:pointer}
+  .gnode .box{fill:var(--paper);stroke:var(--line);stroke-width:1.5;transition:stroke .15s,fill .15s,filter .15s}
+  .gnode:hover .box{stroke:var(--navy-2)}
+  .gnode .lbl{fill:var(--navy);font-size:14px;font-weight:600;text-anchor:middle}
+  .gnode .sub{fill:var(--slate-light);font-size:10px;text-anchor:middle;font-family:var(--mono);letter-spacing:.05em}
+  .edge{stroke:var(--slate-light);stroke-width:1.6;fill:none;transition:stroke .15s,stroke-width .15s,opacity .15s}
+  .edge.dim{opacity:.18}
+  .gnode.dim .box{opacity:.32}
+  .gnode.dim .lbl,.gnode.dim .sub{opacity:.4}
+  .elabel{font-family:var(--mono);font-size:10px;fill:var(--slate);text-anchor:middle}
+  .elabel.dim{opacity:.2}
+  .endpt{fill:var(--navy);font-size:11px;font-weight:700;text-anchor:middle;font-family:var(--mono);letter-spacing:.08em}
+
+  /* pillar-tinted nodes/edges when active */
+  .hl-1 .box{stroke:var(--p1)!important;fill:var(--p1s)!important}
+  .hl-2 .box{stroke:var(--p2)!important;fill:var(--p2s)!important}
+  .hl-3 .box{stroke:var(--p3)!important;fill:var(--p3s)!important}
+  .hl-4 .box{stroke:var(--p4)!important;fill:var(--p4s)!important}
+  .edge.hl-1{stroke:var(--p1)!important;stroke-width:2.6;opacity:1}
+  .edge.hl-2{stroke:var(--p2)!important;stroke-width:2.6;opacity:1}
+  .edge.hl-3{stroke:var(--p3)!important;stroke-width:2.8;opacity:1;stroke-dasharray:0}
+  .edge.hl-4{stroke:var(--p4)!important;stroke-width:2.6;opacity:1}
+
+  /* observation ribbon */
+  .obsband{fill:var(--p4s);opacity:0;transition:opacity .2s}
+  .obsband.show{opacity:.55}
+  .obstick{fill:var(--p4);opacity:0}
+  .obstick.show{opacity:.9}
+
+  .callouts{position:absolute;pointer-events:none}
+  .callbubble{position:absolute;max-width:230px;background:var(--paper);border:1px solid;border-radius:9px;padding:9px 11px;box-shadow:0 8px 24px rgba(15,42,67,.16);font-size:11.5px;line-height:1.4;opacity:0;transform:translateY(4px);transition:.18s;pointer-events:none;z-index:6}
+  .callbubble.show{opacity:1;transform:none}
+  .callbubble .ct{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;display:block;margin-bottom:3px}
+
+  .legendrow{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--slate);margin-top:14px}
+  .legendrow .it{display:flex;align-items:center;gap:7px}
+  .legendrow .sq{width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.08)}
+  .resetbtn{font-family:var(--mono);font-size:11px;border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:6px 12px;cursor:pointer;color:var(--slate);margin-left:auto}
+  .resetbtn:hover{border-color:var(--navy-2);color:var(--navy)}
+
+  /* tooltip */
+  .tt{position:fixed;z-index:60;max-width:290px;background:var(--navy);color:#eef3f7;font-size:12px;line-height:1.45;padding:9px 12px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);transition:.12s;pointer-events:none}
+  .tt.show{opacity:1;transform:translateY(0)}
+  .tt .ttt{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:3px}
+
+  /* panel */
+  .panel-scrim{position:fixed;inset:0;background:rgba(15,42,67,.28);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .panel-scrim.open{opacity:1;pointer-events:auto}
+  .panel{position:fixed;top:0;right:0;height:100%;width:min(470px,92vw);background:var(--paper);box-shadow:-16px 0 40px rgba(15,42,67,.18);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+  .panel.open{transform:translateX(0)}
+  .panel .ph{padding:24px 26px 18px;border-bottom:1px solid var(--line)}
+  .panel .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .panel .ph h2{margin:6px 0 0;font-size:21px;color:var(--navy)}
+  .panel .pb{padding:20px 26px 40px;overflow:auto}
+  .panel .pb h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate-light);margin:18px 0 8px}
+  .panel .pb p{font-size:14px;line-height:1.6;margin:0 0 10px}
+  .panel .pb ul{margin:0;padding-left:18px}
+  .panel .pb li{font-size:13.5px;line-height:1.55;color:var(--slate);margin-bottom:6px}
+  .panel .pb code{font-family:var(--mono);font-size:12px;background:var(--canvas);padding:1px 5px;border-radius:4px;color:var(--navy)}
+  .pchip{display:inline-flex;gap:7px;align-items:center;border-radius:20px;padding:4px 10px;font-family:var(--mono);font-size:10.5px;font-weight:600;margin-right:6px}
+  .closeb{position:absolute;top:18px;right:18px;border:1px solid var(--line);background:var(--paper);border-radius:7px;width:30px;height:30px;cursor:pointer;font-size:16px;color:var(--slate)}
+  .closeb:hover{border-color:var(--navy-2);color:var(--navy)}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:14px;font-size:11.5px;color:var(--slate-light);font-family:var(--mono);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav">
+    <a href="modules.html">01 · Modules</a>
+    <a href="data-flows.html">02 · Data Flows</a>
+    <a class="active" href="agent-graph.html">03 · Agent Graph</a>
+  </div>
+  <header class="deck">
+    <span class="eyebrow">OntoIt — System Architecture · Exhibit 03</span>
+    <h1>The LangGraph Agent — Where the Rules Live</h1>
+    <p class="sub">The agent's internal node/edge structure. <b>Toggle a pillar</b> below to light up exactly where it is enforced in the graph. <b>Hover</b> a node for its role; <b>click</b> for detail.</p>
+  </header>
+
+  <div class="keyline">
+    <span class="k">The takeaway</span>
+    <p>It's a real, LLM-driven agent — but the limits are <b>concrete code and graph edges a judge can point at</b>, not requests buried in a prompt. The LLM proposes; the graph disposes.</p>
+  </div>
+
+  <div class="pillars" id="pillars">
+    <div class="pillar" data-p="1" tabindex="0">
+      <span class="badge">toggle</span>
+      <div class="pn">Pillar 1</div>
+      <h3><span class="swatch"></span>Chat loop</h3>
+      <div class="pd">The stateful graph + signed-cookie state carry the conversation across turns.</div>
+      <div class="enf">enforced by: graph state + cookie</div>
+    </div>
+    <div class="pillar" data-p="2" tabindex="0">
+      <span class="badge">toggle</span>
+      <div class="pn">Pillar 2</div>
+      <h3><span class="swatch"></span>Tools</h3>
+      <div class="pd">extract / compute / fill are real tool calls — actual functions, not LLM make-believe.</div>
+      <div class="enf">enforced by: real tool nodes</div>
+    </div>
+    <div class="pillar" data-p="3" tabindex="0">
+      <span class="badge">toggle</span>
+      <div class="pn">Pillar 3</div>
+      <h3><span class="swatch"></span>Guardrails</h3>
+      <div class="pd">The ≥5-question edge, the guardrail node, and input validation — all in code, outside the LLM.</div>
+      <div class="enf">enforced by: edges + nodes, not the prompt</div>
+    </div>
+    <div class="pillar" data-p="4" tabindex="0">
+      <span class="badge">toggle</span>
+      <div class="pn">Pillar 4</div>
+      <h3><span class="swatch"></span>Observation</h3>
+      <div class="pd">Every node and edge transition emits an ObservationEvent, streamed live.</div>
+      <div class="enf">enforced by: emit on every transition</div>
+    </div>
+    <button class="resetbtn" id="reset">clear ✕</button>
+  </div>
+
+  <div class="graphwrap">
+    <svg viewBox="0 0 1180 560" id="svg" aria-label="LangGraph agent node and edge diagram">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,3 L0,6 Z" fill="var(--slate-light)"/>
+        </marker>
+        <marker id="arrowB" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,3 L0,6 Z" fill="var(--p3)"/>
+        </marker>
+        <marker id="arrowL" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,3 L0,6 Z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <!-- observation ribbon (pillar 4) -->
+      <rect class="obsband" id="obsband" x="20" y="500" width="1140" height="44" rx="10"/>
+      <text class="endpt" id="obslabel" x="40" y="527" style="text-anchor:start;opacity:0;fill:var(--p4)">ObservationEvent ▸ every transition emits to logs · /health · SSE</text>
+
+      <!-- EDGES (drawn first, under nodes) -->
+      <!-- START -> intake -->
+      <path class="edge" data-e="start-intake" d="M90,70 L90,108" marker-end="url(#arrow)"/>
+      <!-- intake -> extract -->
+      <path class="edge" data-e="intake-extract" d="M170,140 L250,140" marker-end="url(#arrow)"/>
+      <!-- extract -> validate -->
+      <path class="edge" data-e="extract-validate" d="M410,140 L490,140" marker-end="url(#arrow)"/>
+      <!-- validate -> collect -->
+      <path class="edge" data-e="validate-collect" d="M650,140 L730,140" marker-end="url(#arrow)"/>
+      <!-- validate -> collect re-ask loop (curved back, label) -->
+      <path class="edge" data-e="reask" d="M570,172 C570,250 730,250 730,182" marker-end="url(#arrowL)"/>
+      <!-- collect self loop (questions) -->
+      <path class="edge" data-e="collect-loop" d="M770,108 C770,60 870,60 850,106" marker-end="url(#arrow)"/>
+      <!-- collect -> guardrail check -> compute  (the BLOCK edge) -->
+      <path class="edge" data-e="block" d="M810,172 L810,300" marker-end="url(#arrowB)"/>
+      <!-- collect -> guardrail node (off-task) -->
+      <path class="edge" data-e="to-guard" d="M890,140 L1000,140" marker-end="url(#arrow)"/>
+      <!-- guardrail node -> collect (bounded refusal returns) -->
+      <path class="edge" data-e="guard-back" d="M1050,172 C1050,240 900,240 850,176" marker-end="url(#arrow)"/>
+      <!-- compute -> fill -->
+      <path class="edge" data-e="compute-fill" d="M810,372 L560,372" marker-end="url(#arrow)"/>
+      <!-- fill -> done -->
+      <path class="edge" data-e="fill-done" d="M400,372 L250,372" marker-end="url(#arrow)"/>
+      <!-- done -> END -->
+      <path class="edge" data-e="done-end" d="M170,400 L120,430" marker-end="url(#arrow)"/>
+
+      <!-- edge labels -->
+      <text class="elabel" x="650" y="240">validate fails →<tspan x="650" dy="13">re-ask loop</tspan></text>
+      <text class="elabel" x="845" y="52">ask question<tspan x="845" dy="13">(counter++)</tspan></text>
+      <text class="elabel" data-elab="block" x="690" y="240" style="fill:var(--p3);font-weight:700">questions_asked<tspan x="690" dy="13">≥ 5 → BLOCK</tspan></text>
+      <text class="elabel" x="945" y="128">off-task /<tspan x="945" dy="13">advice</tspan></text>
+      <text class="elabel" x="975" y="232">bounded<tspan x="975" dy="13">refusal ↩</tspan></text>
+
+      <!-- START / END terminals -->
+      <circle cx="90" cy="58" r="14" fill="var(--navy)"/>
+      <text class="endpt" x="90" y="62" fill="#fff" style="font-size:9px">START</text>
+      <circle cx="105" cy="442" r="16" fill="var(--navy)"/>
+      <text class="endpt" x="105" y="446" fill="#fff" style="font-size:9px">END</text>
+
+      <!-- NODES -->
+      <g class="gnode" data-id="intake" transform="translate(90,110)">
+        <rect class="box" x="0" y="0" width="80" height="60" rx="9"/>
+        <text class="lbl" x="40" y="30">intake</text>
+        <text class="sub" x="40" y="46">entry</text>
+      </g>
+      <g class="gnode" data-id="extract" transform="translate(250,110)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">extract</text>
+        <text class="sub" x="80" y="46">tool · W-2 → JSON</text>
+      </g>
+      <g class="gnode" data-id="validate" transform="translate(490,110)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">validate</text>
+        <text class="sub" x="80" y="46">schema + cross-field</text>
+      </g>
+      <g class="gnode" data-id="collect" transform="translate(730,110)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">collect</text>
+        <text class="sub" x="80" y="46">converse · ≤5 Q</text>
+      </g>
+      <g class="gnode" data-id="guardrail" transform="translate(1000,110)">
+        <rect class="box" x="0" y="0" width="150" height="60" rx="9"/>
+        <text class="lbl" x="75" y="28">guardrail</text>
+        <text class="sub" x="75" y="46">bounded refusal</text>
+      </g>
+      <g class="gnode" data-id="compute" transform="translate(730,310)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">compute</text>
+        <text class="sub" x="80" y="46">tool · deterministic</text>
+      </g>
+      <g class="gnode" data-id="fill" transform="translate(400,310)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">fill</text>
+        <text class="sub" x="80" y="46">tool · 1040 + bake()</text>
+      </g>
+      <g class="gnode" data-id="done" transform="translate(90,310)">
+        <rect class="box" x="0" y="0" width="160" height="60" rx="9"/>
+        <text class="lbl" x="80" y="28">done</text>
+        <text class="sub" x="80" y="46">deliver PDF</text>
+      </g>
+    </svg>
+
+    <div class="callouts" id="callouts"></div>
+  </div>
+
+  <div class="legendrow">
+    <span class="it"><span class="sq" style="background:var(--p1)"></span>Chat loop</span>
+    <span class="it"><span class="sq" style="background:var(--p2)"></span>Tools</span>
+    <span class="it"><span class="sq" style="background:var(--p3)"></span>Guardrails (code, not prompt)</span>
+    <span class="it"><span class="sq" style="background:var(--p4)"></span>Observation</span>
+    <span class="it" style="margin-left:auto;color:var(--slate-light);font-family:var(--mono);font-size:11px">hover node = role · click = detail</span>
+  </div>
+
+  <footer>
+    <span>OntoIt · LangGraph Agent Structure · variant-a</span>
+    <span>LLM proposes · graph disposes · limits are edges, not prompts</span>
+  </footer>
+</div>
+
+<div class="tt" id="tt"><span class="ttt" id="ttt"></span><span id="ttb"></span></div>
+
+<div class="panel-scrim" id="scrim"></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+  <button class="closeb" id="closeb" aria-label="Close">×</button>
+  <div class="ph"><span class="tag" id="pTag">Node</span><h2 id="pTitle">—</h2></div>
+  <div class="pb" id="pBody"></div>
+</aside>
+
+<script>
+/* ---- pillar → which nodes/edges light up + callout bubbles ---- */
+const PILLARS={
+ 1:{name:"Chat loop",color:"var(--p1)",
+    nodes:["intake","collect"],edges:["start-intake","collect-loop","validate-collect","guard-back","reask"],
+    callout:{x:735,y:88,w:180,t:"Chat loop",txt:"The stateful graph + signed-cookie state carry messages & the question counter across every turn.",border:"var(--p1)",cc:"var(--p1)"}},
+ 2:{name:"Tools",color:"var(--p2)",
+    nodes:["extract","compute","fill"],edges:["extract-validate","compute-fill","fill-done"],
+    callout:{x:255,y:88,w:200,t:"Real tool calls",txt:"extract · compute · fill are actual functions invoked as graph nodes — not text the LLM pretends to run.",border:"var(--p2)",cc:"var(--p2)"}},
+ 3:{name:"Guardrails",color:"var(--p3)",
+    nodes:["validate","guardrail"],edges:["block","to-guard","guard-back","reask"],elab:["block"],
+    callout:{x:560,y:300,w:230,t:"Guardrails — in code, not the prompt",txt:"Conditional edge: questions_asked ≥ 5 → BLOCK Q#6 → route to compute. Plus the input-validation node and the guardrail (bounded-refusal) node. None of these live in the LLM's prompt — they're edges & nodes a judge can point at.",border:"var(--p3)",cc:"var(--p3)"}},
+ 4:{name:"Observation",color:"var(--p4)",
+    nodes:["intake","extract","validate","collect","guardrail","compute","fill","done"],
+    edges:["start-intake","intake-extract","extract-validate","validate-collect","collect-loop","block","to-guard","guard-back","compute-fill","fill-done","done-end","reask"],
+    obsband:true,
+    callout:{x:40,y:455,w:240,t:"Observation",txt:"Every node entry and edge transition emits an ObservationEvent — fanned out to structured logs, /health, and the live SSE panel.",border:"var(--p4)",cc:"var(--p4)"}}
+};
+
+const NODE_INFO={
+ intake:{tag:"Node · entry",title:"intake",pillars:[1],
+  intro:"The graph's entry point. It hydrates state from the signed cookie and decides whether this turn starts a new filing or resumes one.",
+  pts:["Loads <code>messages</code>, W-2 JSON, and <code>questions_asked</code> from the cookie.","Routes to <b>extract</b> on a fresh upload.","Part of the stateful <b>chat loop</b> (Pillar 1)."]},
+ extract:{tag:"Tool node",title:"extract",pillars:[2,4],
+  intro:"A real tool call. Turns the uploaded W-2 into structured JSON via pdfplumber, falling back to Claude Vision for scans, with per-field confidence.",
+  pts:["pdfplumber text parse → Claude Vision fallback.","Returns W-2 JSON + confidence scores.","A genuine function invocation (Pillar 2 — Tools), not LLM narration.","Emits an ObservationEvent on entry/exit (Pillar 4)."]},
+ validate:{tag:"Guardrail node",title:"validate",pillars:[3,4],
+  intro:"An input-validation gate enforced in code. The extracted W-2 must pass a schema and cross-field checks before the conversation may continue.",
+  pts:["Schema validation of all W-2 fields.","Cross-field: Box 2 &lt; Box 1; Social Security ≈ 6.2% of wages.","On failure → the <b>re-ask loop</b> back to collect (does not guess).","A guardrail (Pillar 3) that lives in a node, not the prompt."]},
+ collect:{tag:"Conversation node",title:"collect (converse)",pillars:[1,3],
+  intro:"The conversational heart. Claude runs a warm interview — filing status, dependents, confirm the W-2 figures — and a code counter increments once per question.",
+  pts:["Claude phrases the questions; the graph keeps the count.","<code>questions_asked</code> increments per turn (Pillar 1 — chat loop).","The outbound edge enforces <b>≥ 5 → BLOCK</b> (Pillar 3).","Off-task / advice requests route to the <b>guardrail</b> node."]},
+ guardrail:{tag:"Guardrail node",title:"guardrail",pillars:[3,4],
+  intro:"Catches off-task or advice-seeking turns and returns a bounded refusal, then routes back to collect. The refusal is a node, not a prompt instruction the LLM may ignore.",
+  pts:["Triggered on off-task / tax-advice requests.","Returns a bounded refusal, then → collect.","A concrete guardrail node (Pillar 3).","Emits an ObservationEvent (Pillar 4)."]},
+ compute:{tag:"Tool node",title:"compute",pillars:[2,4],
+  intro:"The deterministic tax engine — never the LLM. Pure Decimal math over cited 2025 parameters and the IRS Tax Table; both credits computed in code, with reasons.",
+  pts:["Reached only after the ≥5 guardrail routes here.","Pure function: taxable $28,879.35 → tax <code>$3,227</code> (Tax Table).","Saver's $0 (above $39,500 Single) · EITC $0 (above $19,104 childless).","Real tool node (Pillar 2); emits ObservationEvent (Pillar 4). LLMs score ~23–32% on 1040s — so this is code."]},
+ fill:{tag:"Tool node",title:"fill",pillars:[2,4],
+  intro:"Writes the computed figures onto the official IRS 2025 Form 1040 with PyMuPDF, then bake()s the fields to flat static text.",
+  pts:["PyMuPDF fills the official 1040 AcroForm.","<code>bake()</code> flattens fields → static text.","Real tool node (Pillar 2); emits ObservationEvent (Pillar 4)."]},
+ done:{tag:"Terminal node",title:"done",pillars:[4],
+  intro:"Delivers the completed Form 1040 and the line-by-line trace, then routes to END. The final ObservationEvent closes the session.",
+  pts:["Returns the baked PDF + tax trace to the UI.","Routes to <b>END</b>.","Emits <code>session.done</code> (Pillar 4)."]}
+};
+
+let active=null;
+const svg=document.getElementById('svg');
+const callouts=document.getElementById('callouts');
+const obsband=document.getElementById('obsband');
+const obslabel=document.getElementById('obslabel');
+
+function clearHL(){
+  document.querySelectorAll('.gnode').forEach(n=>{n.classList.remove('hl-1','hl-2','hl-3','hl-4','dim');});
+  document.querySelectorAll('.edge').forEach(e=>{e.classList.remove('hl-1','hl-2','hl-3','hl-4','dim');});
+  document.querySelectorAll('.elabel').forEach(e=>e.classList.remove('dim'));
+  callouts.innerHTML='';
+  obsband.classList.remove('show');obslabel.style.opacity=0;
+  document.querySelectorAll('.pillar').forEach(p=>p.classList.remove('on'));
+}
+function applyPillar(p){
+  clearHL();
+  if(active===p){active=null;return;}
+  active=p;
+  const cfg=PILLARS[p];
+  document.querySelector(`.pillar[data-p="${p}"]`).classList.add('on');
+  // dim everything first
+  document.querySelectorAll('.gnode').forEach(n=>n.classList.add('dim'));
+  document.querySelectorAll('.edge').forEach(e=>e.classList.add('dim'));
+  document.querySelectorAll('.elabel').forEach(e=>e.classList.add('dim'));
+  // light targeted
+  cfg.nodes.forEach(id=>{const n=document.querySelector(`.gnode[data-id="${id}"]`);if(n){n.classList.remove('dim');n.classList.add('hl-'+p);}});
+  cfg.edges.forEach(e=>{const el=document.querySelector(`.edge[data-e="${e}"]`);if(el){el.classList.remove('dim');el.classList.add('hl-'+p);}});
+  if(cfg.elab)cfg.elab.forEach(l=>{const el=document.querySelector(`.elabel[data-elab="${l}"]`);if(el)el.classList.remove('dim');});
+  if(cfg.obsband){obsband.classList.add('show');obslabel.style.opacity=1;
+    document.querySelectorAll('.gnode').forEach(n=>n.classList.remove('dim'));}
+  // callout bubble — position via SVG coords → pixel
+  if(cfg.callout)placeCallout(cfg.callout);
+}
+function placeCallout(c){
+  const rect=svg.getBoundingClientRect();
+  const vb=svg.viewBox.baseVal;
+  const sx=rect.width/vb.width, sy=rect.height/vb.height;
+  const b=document.createElement('div');
+  b.className='callbubble';
+  b.style.left=(c.x*sx)+'px';
+  b.style.top=(c.y*sy)+'px';
+  b.style.width=c.w*sx*0.9+'px';
+  b.style.maxWidth='250px';
+  b.style.borderColor=c.border;
+  b.innerHTML=`<span class="ct" style="color:${c.cc}">${c.t}</span>${c.txt}`;
+  callouts.appendChild(b);
+  requestAnimationFrame(()=>b.classList.add('show'));
+}
+document.querySelectorAll('.pillar').forEach(p=>{
+  p.addEventListener('click',()=>applyPillar(p.dataset.p));
+  p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();applyPillar(p.dataset.p);}});
+});
+document.getElementById('reset').onclick=()=>{active=null;clearHL();};
+addEventListener('resize',()=>{if(active){const a=active;active=null;applyPillar(a);}});
+
+/* ---- node tooltip + panel ---- */
+const tt=document.getElementById('tt'),ttt=document.getElementById('ttt'),ttb=document.getElementById('ttb');
+const NODE_TT={
+ intake:["entry","Hydrates state from the cookie; routes a new upload to extract."],
+ extract:["tool","pdfplumber → Claude Vision; W-2 → JSON with confidence."],
+ validate:["guardrail","Schema + cross-field checks (Box2<Box1, SS≈6.2%). Fails → re-ask."],
+ collect:["converse","≤5 warm questions; counter increments per question."],
+ guardrail:["guardrail","Off-task/advice → bounded refusal → back to collect."],
+ compute:["tool","Deterministic Decimal math; IRS Tax Table; credits with reasons."],
+ fill:["tool","PyMuPDF fills the 1040, bake() flattens to static text."],
+ done:["terminal","Delivers the PDF + trace; emits session.done."]
+};
+function moveTT(e){const pad=14;let x=e.clientX+pad,y=e.clientY+pad;const r=tt.getBoundingClientRect();
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-pad;if(y+r.height>innerHeight-8)y=e.clientY-r.height-pad;
+  tt.style.left=x+'px';tt.style.top=y+'px';}
+document.querySelectorAll('.gnode').forEach(n=>{
+  const id=n.dataset.id;
+  n.addEventListener('mouseenter',e=>{ttt.textContent=NODE_TT[id][0];ttb.textContent=NODE_TT[id][1];tt.classList.add('show');moveTT(e);});
+  n.addEventListener('mousemove',moveTT);
+  n.addEventListener('mouseleave',()=>tt.classList.remove('show'));
+  n.addEventListener('click',()=>openPanel(id));
+});
+const scrim=document.getElementById('scrim'),panel=document.getElementById('panel');
+const PCOL={1:["var(--p1)","var(--p1s)"],2:["var(--p2)","var(--p2s)"],3:["var(--p3)","var(--p3s)"],4:["var(--p4)","var(--p4s)"]};
+const PNAME={1:"Chat loop",2:"Tools",3:"Guardrails",4:"Observation"};
+function openPanel(id){
+  const d=NODE_INFO[id];if(!d)return;
+  document.getElementById('pTag').textContent=d.tag;
+  document.getElementById('pTitle').textContent=d.title;
+  const chips=d.pillars.map(p=>`<span class="pchip" style="background:${PCOL[p][1]};color:${PCOL[p][0]}">● Pillar ${p} · ${PNAME[p]}</span>`).join('');
+  document.getElementById('pBody').innerHTML=
+    `<p>${d.intro}</p>`+
+    `<h4>Pillars enforced here</h4><div>${chips}</div>`+
+    `<h4>Detail</h4><ul>${d.pts.map(p=>`<li>${p}</li>`).join('')}</ul>`;
+  scrim.classList.add('open');panel.classList.add('open');tt.classList.remove('show');
+}
+function closePanel(){scrim.classList.remove('open');panel.classList.remove('open');}
+document.getElementById('closeb').onclick=closePanel;scrim.onclick=closePanel;
+addEventListener('keydown',e=>{if(e.key==='Escape')closePanel();});
+</script>
+</body>
+</html>

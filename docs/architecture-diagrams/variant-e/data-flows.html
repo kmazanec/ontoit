@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — Filing Session Data Flow (Guided Tour)</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --panel:#ffffff; --ink:#1d2733; --muted:#5b6b7d;
+    --line:#d4dde7; --accent:#2f6fed; --accent-soft:#e7f0ff;
+    --good:#1f9d6b; --good-soft:#e3f6ee; --warn:#c97a16; --warn-soft:#fcefdc;
+    --block:#d6452f; --block-soft:#fbe6e1;
+    --shadow:0 6px 22px rgba(27,48,79,.08);
+    --dim:.30;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef2f8,#f6f8fb 240px); color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  header.top{padding:18px 26px 10px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+  header.top h1{font-size:20px;margin:0}
+  header.top .tag{font-size:12.5px;color:var(--muted)}
+  header.top .pill{font-size:11.5px;background:var(--accent-soft);color:var(--accent);padding:3px 10px;border-radius:999px;font-weight:600}
+  .layout{display:grid; grid-template-columns:1fr 390px; gap:18px; padding:6px 26px 26px; align-items:start}
+  @media (max-width:1100px){ .layout{grid-template-columns:1fr} }
+
+  .stage{background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:14px; overflow:hidden}
+  svg{width:100%; height:auto; display:block}
+
+  .node rect, .node circle{ transition:opacity .45s ease, filter .45s ease, stroke .3s ease; }
+  .node text{ transition:opacity .45s ease; }
+  .edge{ transition:opacity .45s ease, stroke .3s ease; }
+  .dim{ opacity:var(--dim); }
+  .focus rect.box{ stroke:var(--accent); stroke-width:2.4; filter:drop-shadow(0 4px 12px rgba(47,111,237,.30)); }
+  .focus.good rect.box{ stroke:var(--good); filter:drop-shadow(0 4px 12px rgba(31,157,107,.30)); }
+  .focus.warn rect.box{ stroke:var(--warn); filter:drop-shadow(0 4px 12px rgba(201,122,22,.30)); }
+  .focus.block rect.box{ stroke:var(--block); stroke-width:2.6; filter:drop-shadow(0 4px 14px rgba(214,69,47,.34)); }
+  .edge.hot{ stroke:var(--accent); stroke-width:2.8; opacity:1; }
+  .edge.block{ stroke:var(--block); stroke-width:2.8; opacity:1; }
+
+  .ntitle{font-weight:700; font-size:13px}
+  .nsub{font-size:10.5px; fill:var(--muted)}
+  .obs-tag{font-size:9px; fill:#7d8fa3; letter-spacing:.3px}
+
+  .tour{background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+    padding:18px 18px 16px; position:sticky; top:14px; display:flex; flex-direction:column; min-height:440px}
+  .tour .step-meta{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tour .num{width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+  .tour.good .num{background:var(--good)} .tour.warn .num{background:var(--warn)} .tour.block .num{background:var(--block)}
+  .tour .count{font-size:12px;color:var(--muted)}
+  .tour h2{font-size:17px;margin:6px 0 2px;line-height:1.25}
+  .tour .body{font-size:13.5px;line-height:1.55;color:#34465a;flex:1}
+  .tour .body b{color:var(--ink)}
+  .tour .obs{margin-top:12px;font-size:11.5px;color:var(--muted);background:#f1f5fa;border-radius:8px;padding:8px 11px;display:flex;gap:7px;align-items:flex-start}
+  .tour .obs code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:5px;font-size:11px}
+  .tour .callout{margin-top:10px;font-size:12px;font-weight:600;border-radius:8px;padding:8px 11px}
+  .tour.block .callout{color:var(--block);background:var(--block-soft)}
+  .tour.good .callout{color:var(--good);background:var(--good-soft)}
+  .controls{display:flex;gap:10px;margin-top:16px}
+  .controls button{flex:1;border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 12px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+  .controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .controls button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls button.primary:hover{filter:brightness(1.05);color:#fff}
+  .controls button:disabled{opacity:.4;cursor:default}
+  .progress{display:flex;gap:5px;margin-top:14px;flex-wrap:wrap}
+  .progress .dot{width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer;transition:.2s}
+  .progress .dot.active{background:var(--accent);transform:scale(1.25)}
+  .progress .dot.done{background:#a8c4f4}
+  .hint{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 4px 0;font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>OntoIt</h1>
+  <span class="pill">Filing Session — Data Flow</span>
+  <span class="tag">one W-2 to a filled IRS Form 1040 · every step emits an ObservationEvent</span>
+</header>
+
+<div class="layout">
+  <div>
+    <div class="stage">
+      <svg id="diagram" viewBox="0 0 940 560" role="img" aria-label="OntoIt filing data flow">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#9bb0c6"/>
+          </marker>
+          <marker id="arrowHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2f6fed"/>
+          </marker>
+          <marker id="arrowBlock" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#d6452f"/>
+          </marker>
+        </defs>
+
+        <!-- edges -->
+        <g fill="none" stroke="#9bb0c6" stroke-width="1.6">
+          <path class="edge" data-edge="e1" d="M150,80 H230" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e2" d="M310,110 V160" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e3" d="M310,210 V260" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e4" d="M390,290 H470" marker-end="url(#arrow)"/>
+          <!-- re-ask loop validate <-> collect -->
+          <path class="edge" data-edge="loop" d="M560,320 C560,380 470,380 470,320" marker-end="url(#arrow)"/>
+          <!-- Q#6 block -->
+          <path class="edge" data-edge="qblock" d="M520,260 C520,200 600,200 600,150" marker-end="url(#arrowBlock)" stroke-dasharray="6 4"/>
+          <path class="edge" data-edge="e5" d="M640,290 H720" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e6" d="M780,260 V200" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e7" d="M780,320 V370" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="e8" d="M780,450 V500" marker-end="url(#arrow)"/>
+        </g>
+
+        <!-- nodes -->
+        <g class="node" data-node="upload">
+          <rect class="box" x="40" y="50" width="110" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="56" y="74">Upload W-2</text>
+          <text class="nsub" x="56" y="92">or bundled sample</text>
+        </g>
+
+        <g class="node" data-node="api">
+          <rect class="box" x="230" y="50" width="160" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="248" y="74">FastAPI invokes graph</text>
+          <text class="nsub" x="248" y="92">opens SSE stream</text>
+        </g>
+
+        <g class="node" data-node="extract">
+          <rect class="box" x="230" y="160" width="160" height="50" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="248" y="182">extract_w2</text>
+          <text class="nsub" x="248" y="200">pdfplumber → Vision</text>
+        </g>
+
+        <g class="node" data-node="validate">
+          <rect class="box" x="230" y="260" width="160" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="248" y="282">validate</text>
+          <text class="nsub" x="248" y="300">schema + cross-field</text>
+          <text class="nsub" x="248" y="314">Box2&lt;Box1 · SS≈6.2%</text>
+        </g>
+
+        <g class="node" data-node="collect">
+          <rect class="box" x="470" y="260" width="170" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="488" y="282">≤5 warm questions</text>
+          <text class="nsub" x="488" y="300">status · dependents</text>
+          <text class="nsub" x="488" y="314">confirm figures · counter</text>
+        </g>
+
+        <!-- Q6 block marker -->
+        <g class="node" data-node="q6">
+          <rect class="box" x="560" y="120" width="120" height="50" rx="11" fill="#fff" stroke="#cdd9e6" stroke-dasharray="5 4"/>
+          <text class="ntitle" x="576" y="142" fill="#d6452f">EDGE blocks Q#6</text>
+          <text class="nsub" x="576" y="160">questions_asked≥5</text>
+        </g>
+
+        <g class="node" data-node="compute">
+          <rect class="box" x="720" y="260" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="738" y="282">compute_tax</text>
+          <text class="nsub" x="738" y="300">deterministic</text>
+          <text class="nsub" x="738" y="314">Decimal · pure</text>
+        </g>
+
+        <g class="node" data-node="result">
+          <rect class="box" x="700" y="140" width="160" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="718" y="162">TaxResult + trace</text>
+          <text class="nsub" x="718" y="180">line-by-line</text>
+          <text class="nsub" x="718" y="194">credits with reasons</text>
+        </g>
+
+        <g class="node" data-node="fill">
+          <rect class="box" x="720" y="370" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="738" y="392">fill_1040</text>
+          <text class="nsub" x="738" y="410">PyMuPDF</text>
+          <text class="nsub" x="738" y="424">fill + bake</text>
+        </g>
+
+        <g class="node" data-node="download">
+          <rect class="box" x="700" y="500" width="160" height="50" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="718" y="522">Download Form 1040</text>
+          <text class="nsub" x="718" y="540">official IRS 2025 PDF</text>
+        </g>
+
+        <!-- SSE rail label -->
+        <text class="obs-tag" x="40" y="430">SSE ↑ every step emits an ObservationEvent</text>
+        <line x1="40" y1="438" x2="200" y2="438" stroke="#cdd9e6" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:#2f6fed"></i> active step</span>
+      <span><i style="background:#1f9d6b"></i> deterministic / trusted</span>
+      <span><i style="background:#c97a16"></i> validation</span>
+      <span><i style="background:#d6452f"></i> hard block</span>
+    </div>
+  </div>
+
+  <aside class="tour" id="tour">
+    <div class="step-meta">
+      <div class="num" id="t-num">1</div>
+      <div class="count" id="t-count">Step 1 of 10</div>
+    </div>
+    <h2 id="t-title">Title</h2>
+    <div class="body" id="t-body">Body</div>
+    <div class="callout" id="t-callout" style="display:none"></div>
+    <div class="obs" id="t-obs"><span>📡</span><span id="t-obs-text"></span></div>
+    <div class="controls">
+      <button id="prev">‹ Prev</button>
+      <button id="next" class="primary">Next ›</button>
+    </div>
+    <div class="progress" id="progress"></div>
+    <div class="hint">Use ← → arrow keys · click a dot to jump</div>
+  </aside>
+</div>
+
+<script>
+const STEPS = [
+  {
+    nodes:["upload"], edges:[], tone:"",
+    title:"1 · Upload the W-2 (or use the sample)",
+    body:"The filer drops in a W-2 PDF or image. For demos there is a <b>bundled sample</b> — our reference filer with wages <b>$44,629.35</b> and withholding <b>$7,631.62</b>, Single, no kids.",
+    obs:"emits <code>session.started</code> · file received"
+  },
+  {
+    nodes:["api"], edges:["e1"], tone:"",
+    title:"2 · FastAPI invokes the graph",
+    body:"FastAPI hands the upload to the <b>LangGraph agent</b> and opens an <b>SSE stream</b> back to the browser so the observation panel lights up immediately.",
+    obs:"emits <code>graph.invoked</code> · SSE channel open"
+  },
+  {
+    nodes:["extract"], edges:["e2"], tone:"",
+    title:"3 · extract_w2 — read the form",
+    body:"The <b>extract_w2</b> tool first tries <b>pdfplumber</b> for embedded text. If the document is a scan or photo, it falls back to <b>Claude Vision</b>. Each field comes back with a confidence score.",
+    obs:"emits <code>tool.extract_w2</code> · per-field confidence"
+  },
+  {
+    nodes:["validate"], edges:["e3"], tone:"warn",
+    title:"4 · validate — sanity-check the numbers",
+    body:"Before trusting anything, the <b>validate</b> node runs a schema check plus <b>cross-field rules</b>: federal withholding (Box 2) must be less than wages (Box 1), and Social Security tax should be ≈ <b>6.2%</b> of SS wages. Bad extractions are caught here, not at the IRS.",
+    obs:"emits <code>node.validate</code> · pass/fail per rule"
+  },
+  {
+    nodes:["collect"], edges:["e4"], tone:"",
+    title:"5 · ≤5 warm questions",
+    body:"The agent asks a short, friendly set of questions — <b>filing status</b>, <b>dependents</b>, and to <b>confirm the extracted figures</b>. A <b>code counter</b> increments on every question asked.",
+    obs:"emits <code>node.collect</code> · questions_asked++"
+  },
+  {
+    nodes:["q6","collect","validate"], edges:["qblock"], tone:"block",
+    title:"6 · The graph EDGE that blocks question #6",
+    body:"This is the load-bearing guardrail. A <b>conditional edge</b> tests <b>questions_asked ≥ 5</b>. When true the path to ask again is closed and the graph routes forward to compute — <b>in code, outside the LLM's choice</b>. Claude cannot talk its way past it.",
+    callout:"Hard block · question #6 is unreachable by graph topology, not by a prompt request.",
+    obs:"emits <code>guardrail.question_cap</code> · forced transition"
+  },
+  {
+    nodes:["compute"], edges:["e5"], tone:"good",
+    title:"7 · compute_tax — deterministic math",
+    body:"With facts gathered, <b>compute_tax</b> runs. It is pure <b>Decimal</b> arithmetic against the cited 2025 params and the <b>IRS Tax Table</b> — never the LLM. Taxable income <b>$28,879.35</b> → tax <b>$3,227</b> (table value) → refund <b>≈ $4,405</b>.",
+    callout:"Tax math is code, never the LLM — TaxCalcBench LLM accuracy ~23–32%.",
+    obs:"emits <code>tool.compute_tax</code> · inputs + result"
+  },
+  {
+    nodes:["result"], edges:["e6"], tone:"good",
+    title:"8 · TaxResult + line-by-line trace (credits with reasons)",
+    body:"compute_tax returns a full <b>TaxResult</b> with a <b>line-by-line trace</b> the UI renders. Both credits resolve to <b>$0</b> — and the trace says <i>why</i>: <b>Saver's Credit</b> phases out above $39,500 Single, and the childless <b>EITC</b> income limit is $19,104. Nothing is silently dropped.",
+    callout:"Credits are shown with reasons — $0 is explained, not hidden.",
+    obs:"emits <code>result.ready</code> · trace + credit rationale"
+  },
+  {
+    nodes:["fill"], edges:["e7"], tone:"",
+    title:"9 · fill_1040 — write the official form",
+    body:"The <b>fill_1040</b> tool uses <b>PyMuPDF</b> to write every value onto the real IRS form fields, then <b>bakes</b> the PDF flat so the output is a fixed, non-editable document.",
+    obs:"emits <code>tool.fill_1040</code> · fields written + baked"
+  },
+  {
+    nodes:["download"], edges:["e8"], tone:"good",
+    title:"10 · Download the IRS 2025 Form 1040",
+    body:"The session ends with a download of the <b>official IRS 2025 Form 1040</b>, filled and flattened — ready to review. Every step that got here was streamed live and logged.",
+    obs:"emits <code>session.complete</code> · artifact delivered"
+  }
+];
+
+const tour = document.getElementById('tour');
+const elNum=document.getElementById('t-num'), elCount=document.getElementById('t-count');
+const elTitle=document.getElementById('t-title'), elBody=document.getElementById('t-body');
+const elObs=document.getElementById('t-obs-text'), elCallout=document.getElementById('t-callout');
+const progress=document.getElementById('progress');
+let i=0;
+
+STEPS.forEach((_,idx)=>{const d=document.createElement('div');d.className='dot';d.onclick=()=>go(idx);progress.appendChild(d);});
+
+function go(n){
+  i=Math.max(0,Math.min(STEPS.length-1,n));
+  const s=STEPS[i];
+  tour.className='tour'+(s.tone?' '+s.tone:'');
+  elNum.textContent=i+1;
+  elCount.textContent=`Step ${i+1} of ${STEPS.length}`;
+  elTitle.textContent=s.title;
+  elBody.innerHTML=s.body;
+  elObs.innerHTML=s.obs;
+  if(s.callout){elCallout.style.display='block';elCallout.textContent=s.callout;}
+  else{elCallout.style.display='none';}
+  document.querySelectorAll('#diagram .node').forEach(g=>{
+    const id=g.getAttribute('data-node');
+    g.classList.remove('focus','good','warn','block','dim');
+    if(s.nodes.includes(id)){g.classList.add('focus'); if(s.tone)g.classList.add(s.tone);}
+    else g.classList.add('dim');
+  });
+  document.querySelectorAll('#diagram .edge').forEach(e=>{
+    const id=e.getAttribute('data-edge');
+    e.classList.remove('hot','block','dim');
+    if(s.edges&&s.edges.includes(id)){
+      if(s.tone==='block'){e.classList.add('block');e.setAttribute('marker-end','url(#arrowBlock)');}
+      else{e.classList.add('hot');e.setAttribute('marker-end','url(#arrowHot)');}
+    } else {
+      e.classList.add('dim');
+      e.setAttribute('marker-end', id==='qblock'?'url(#arrowBlock)':'url(#arrow)');
+    }
+  });
+  [...progress.children].forEach((d,idx)=>{d.classList.toggle('active',idx===i);d.classList.toggle('done',idx<i);});
+  document.getElementById('prev').disabled=(i===0);
+  document.getElementById('next').disabled=(i===STEPS.length-1);
+}
+document.getElementById('next').onclick=()=>go(i+1);
+document.getElementById('prev').onclick=()=>go(i-1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(i+1);if(e.key==='ArrowLeft')go(i-1);});
+go(0);
+</script>
+</body>
+</html>

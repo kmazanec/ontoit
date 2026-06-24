@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — Filing Session Data Flow</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141925; --panel2:#1a2030;
+    --ink:#e6ebf2; --ink-dim:#9aa6b8; --ink-faint:#67738a;
+    --line:#26304255; --line-solid:#2b3650;
+    --mono:'SFMono-Regular',ui-monospace,'JetBrains Mono','Fira Code',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;
+    --c-frontend:#6ea8fe; --c-transport:#a78bfa; --c-agent:#34d399;
+    --c-tools:#fbbf24; --c-data:#f472b6; --c-claude:#f97066; --c-block:#f97066;
+    --shadow:0 1px 0 #ffffff08 inset, 0 8px 24px -12px #000a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5}
+  body{background:radial-gradient(1100px 600px at 85% -10%,#16213a40,transparent),
+    radial-gradient(900px 500px at -10% 0%,#2a173a30,transparent),var(--bg)}
+  .wrap{max-width:1280px;margin:0 auto;padding:32px 26px 120px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  h1{font-size:30px;margin:4px 0 0;letter-spacing:-.02em;font-weight:680}
+  h1 .accent{background:linear-gradient(90deg,#6ea8fe,#a78bfa 45%,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--ink-dim);max-width:80ch;margin:10px 0 0}
+  .lede code{font-family:var(--mono);font-size:.85em;background:#ffffff0d;padding:1px 6px;border-radius:5px;border:1px solid #ffffff12;color:var(--ink)}
+
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 6px}
+  .btn{font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line-solid);
+    border-radius:9px;padding:9px 15px;cursor:pointer;transition:.16s;display:inline-flex;align-items:center;gap:8px}
+  .btn:hover{border-color:var(--c-agent);color:#fff}
+  .btn.primary{background:linear-gradient(180deg,#1d3a30,#16302a);border-color:#2f6a55}
+  .btn.primary:hover{box-shadow:0 0 0 1px var(--c-agent),0 8px 24px -12px #34d39966}
+  .btn .dot{width:8px;height:8px;border-radius:50%;background:var(--c-agent);box-shadow:0 0 8px var(--c-agent)}
+  .prog{flex:1;min-width:160px;height:6px;border-radius:99px;background:#0c1019;border:1px solid var(--line-solid);overflow:hidden}
+  .prog > i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6ea8fe,#34d399);transition:width .35s}
+  .counter{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  .counter b{color:var(--c-tools)}
+
+  /* swimlane header */
+  .lanes{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:22px 0 6px}
+  .lane{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+    text-align:center;padding:9px 6px;border-radius:10px;border:1px solid var(--lc);color:var(--lc);
+    background:color-mix(in srgb,var(--lc) 9%,transparent)}
+  .lane.user{--lc:#cbd5e1}.lane.ui{--lc:var(--c-frontend)}.lane.api{--lc:var(--c-transport)}
+  .lane.graph{--lc:var(--c-agent)}.lane.tools{--lc:var(--c-tools)}
+
+  /* timeline */
+  .flow{position:relative;margin-top:8px}
+  .spine{position:absolute;left:calc(10% );top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--c-frontend),var(--c-agent),var(--c-tools));opacity:.25}
+  .step{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch;margin:0 0 12px;position:relative}
+  .card{grid-column:var(--col);background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line-solid);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow);
+    position:relative;opacity:.32;filter:saturate(.55);transition:opacity .35s,filter .35s,transform .25s,border-color .25s;cursor:pointer}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--ac)}
+  .card .num{position:absolute;top:-9px;left:13px;font-family:var(--mono);font-size:10.5px;font-weight:600;
+    background:var(--ac);color:#0b0e14;padding:2px 8px;border-radius:99px;box-shadow:0 0 10px var(--ac)66}
+  .card .head{display:flex;align-items:center;gap:8px;margin:3px 0 5px}
+  .card .label{font-family:var(--mono);font-weight:650;font-size:13.5px;color:#fff;letter-spacing:-.01em}
+  .card .lane-tag{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ac);opacity:.8}
+  .card .desc{color:var(--ink-dim);font-size:12.6px;line-height:1.4}
+  .card .obs{margin-top:9px;display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;color:var(--c-data)}
+  .card .obs .pulse{width:7px;height:7px;border-radius:50%;background:var(--c-data)}
+  .card.live{opacity:1;filter:none;transform:translateY(-2px);border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)55,0 14px 34px -16px #000c}
+  .card.live .obs .pulse{animation:pulse 1.1s infinite}
+  .card.done{opacity:.92;filter:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--c-data)cc}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  .ac-ui{--ac:var(--c-frontend)}.ac-api{--ac:var(--c-transport)}.ac-graph{--ac:var(--c-agent)}
+  .ac-tools{--ac:var(--c-tools)}.ac-user{--ac:#cbd5e1}.ac-block{--ac:var(--c-block)}.ac-data{--ac:var(--c-data)}
+
+  /* special highlight cards */
+  .step.spotlight .card{border-style:solid}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:5px;margin-left:6px}
+  .badge.block{background:var(--c-block);color:#0b0e14}
+  .badge.code{background:var(--c-tools);color:#0b0e14}
+
+  .spotlight-rail{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 2px}
+  .spotcard{flex:1;min-width:260px;border:1px dashed var(--sc);border-radius:11px;padding:12px 14px;
+    background:color-mix(in srgb,var(--sc) 8%,transparent)}
+  .spotcard h4{margin:0 0 5px;font-family:var(--mono);font-size:12px;color:var(--sc);letter-spacing:.04em}
+  .spotcard p{margin:0;font-size:12.6px;color:var(--ink-dim);line-height:1.42}
+  .spotcard.block{--sc:var(--c-block)}.spotcard.code{--sc:var(--c-tools)}
+
+  /* detail flyout (click to expand) */
+  .more{margin-top:10px;border-top:1px dashed var(--line-solid);padding-top:9px;display:none}
+  .card.open .more{display:block}
+  .more .kv{display:flex;gap:8px;font-family:var(--mono);font-size:11px;margin:3px 0;color:var(--ink-dim)}
+  .more .kv b{color:var(--ink)}
+  .more .ev{font-family:var(--mono);font-size:11px;background:#0c1019;border:1px solid var(--line-solid);
+    border-radius:7px;padding:7px 9px;color:var(--c-data);margin-top:6px;white-space:pre-wrap;line-height:1.4}
+  .chev{margin-left:6px;color:var(--ink-faint);font-size:11px;font-family:var(--mono)}
+
+  /* live observation feed */
+  .feed{position:sticky;bottom:14px;margin-top:18px;background:#0c1019ee;border:1px solid var(--line-solid);
+    border-radius:12px;padding:12px 14px;backdrop-filter:blur(6px);box-shadow:0 10px 30px -14px #000}
+  .feed .fhead{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);margin-bottom:8px}
+  .feed .fhead .live{width:8px;height:8px;border-radius:50%;background:var(--c-data);animation:pulse 1.1s infinite}
+  .feedlist{font-family:var(--mono);font-size:11.5px;display:flex;flex-direction:column;gap:4px;max-height:128px;overflow:auto}
+  .feedlist .row{display:flex;gap:9px;align-items:baseline;color:var(--ink-dim);opacity:0;transform:translateY(4px);animation:rise .3s forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .feedlist .row .t{color:var(--ink-faint)}
+  .feedlist .row .ty{color:var(--c-data);min-width:130px}
+  .feedlist .row .m{color:var(--ink)}
+  footer.foot{margin-top:30px;border-top:1px solid var(--line);padding-top:18px;color:var(--ink-faint);
+    font-family:var(--mono);font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  footer.foot a{color:var(--ink-dim)}footer.foot a:hover{color:var(--ink)}
+  .pill{font-family:var(--mono);font-size:11px;color:var(--ink-dim);border:1px solid var(--line-solid);border-radius:99px;padding:3px 10px}
+  @media(max-width:900px){.lanes{display:none}.card{grid-column:1/-1!important}.spine{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">OntoIt · Architecture · variant B</div>
+  <h1>Filing Session — <span class="accent">end-to-end data flow</span></h1>
+  <p class="lede">One full session: upload a W-2, a warm <code>≤5</code>-question conversation, deterministic
+    compute, and a downloaded official IRS 2025 Form 1040. <strong>Every step emits an ObservationEvent over SSE.</strong>
+    Two things to watch: a graph <strong>edge blocks question #6</strong>, and <strong>credits are computed in code, shown with reasons</strong>.</p>
+
+  <div class="toolbar">
+    <button class="btn primary" id="play"><span class="dot"></span>Play session</button>
+    <button class="btn" id="step">Step ›</button>
+    <button class="btn" id="reset">Reset</button>
+    <div class="prog"><i id="bar"></i></div>
+    <div class="counter">questions_asked: <b id="qc">0</b> / 5</div>
+  </div>
+
+  <div class="lanes">
+    <div class="lane user">User / Judge</div>
+    <div class="lane ui">Web UI</div>
+    <div class="lane api">FastAPI</div>
+    <div class="lane graph">LangGraph · Claude</div>
+    <div class="lane tools">Tools</div>
+  </div>
+
+  <div class="flow" id="flow"><div class="spine"></div></div>
+
+  <div class="feed">
+    <div class="fhead"><span class="live"></span>SSE · ObservationEvent stream <span style="margin-left:auto">/health · structured logs · UI panel</span></div>
+    <div class="feedlist" id="feed"></div>
+  </div>
+
+  <footer class="foot">
+    <span class="pill">OntoIt</span>
+    <span>sample: wages $44,629.35 · withholding $7,631.62 · Single · no kids → tax $3,227 · refund ≈ $4,405 · credits $0</span>
+    <span>→ <a href="modules.html">modules.html</a> &nbsp; <a href="agent-graph.html">agent-graph.html</a></span>
+  </footer>
+</div>
+
+<script>
+/* col spans across the 5 lanes: user|ui|api|graph|tools  (1..5) */
+const STEPS=[
+  {lane:'user',col:'1/3',label:'Upload W-2',badge:null,
+   desc:'User uploads a single ~$40k W-2 — or picks the bundled sample.',
+   ev:'ui.upload', evmsg:'W-2 received (or sample selected)',
+   kv:[['source','Sample-W2.pdf'],['size','~1.4 MB']]},
+  {lane:'api',col:'3/5',label:'POST upload → invoke graph',badge:null,
+   desc:'FastAPI receives the upload with the signed-cookie session and invokes the LangGraph agent.',
+   ev:'graph.invoke', evmsg:'session resumed from signed cookie; graph started',
+   kv:[['cookie','messages · w2_json · counter'],['store','none (stateless)']]},
+  {lane:'tools',col:'4/6',label:'extract_w2',badge:null,
+   desc:'Two-step extraction: pdfplumber pulls text, then Claude Vision reads the image — each value with a confidence.',
+   ev:'tool.extract_w2', evmsg:'pdfplumber → Vision · Box1 $44,629.35 · Box2 $7,631.62 (conf 0.98)',
+   kv:[['step 1','pdfplumber'],['step 2','Claude Vision'],['wages (Box1)','$44,629.35'],['withholding (Box2)','$7,631.62']]},
+  {lane:'graph',col:'4/6',label:'validate',badge:null,
+   desc:'A graph node schema-checks and cross-field-checks the extraction before any value is used downstream.',
+   ev:'node.validate', evmsg:'schema OK · Box2 < Box1 ✓ · SS ≈ 6.2% of Box3 ✓',
+   kv:[['schema','pass'],['cross-field','Box2<Box1 · SS≈6.2%×Box3']]},
+  {lane:'graph',col:'4/6',label:'collect · Q1 — filing status',badge:'q',
+   desc:'Warm question #1. The counter increments in code, not by the model’s say-so.',
+   ev:'node.collect', evmsg:'asked Q1 (filing status) · questions_asked → 1',
+   q:1, kv:[['question','filing status?'],['answer','Single'],['counter','→ 1']]},
+  {lane:'graph',col:'4/6',label:'collect · Q2 — dependents',badge:'q',
+   desc:'Warm question #2 — any dependents / children?',
+   ev:'node.collect', evmsg:'asked Q2 (dependents) · questions_asked → 2',
+   q:2, kv:[['question','dependents?'],['answer','none'],['counter','→ 2']]},
+  {lane:'graph',col:'4/6',label:'collect · Q3 — confirm wages',badge:'q',
+   desc:'Warm question #3 — confirm the extracted wages figure.',
+   ev:'node.collect', evmsg:'asked Q3 (confirm Box1) · questions_asked → 3',
+   q:3, kv:[['question','confirm $44,629.35?'],['answer','yes'],['counter','→ 3']]},
+  {lane:'graph',col:'4/6',label:'collect · Q4 — confirm withholding',badge:'q',
+   desc:'Warm question #4 — confirm withholding.',
+   ev:'node.collect', evmsg:'asked Q4 (confirm Box2) · questions_asked → 4',
+   q:4, kv:[['question','confirm $7,631.62?'],['answer','yes'],['counter','→ 4']]},
+  {lane:'graph',col:'4/6',label:'collect · Q5 — anything else',badge:'q',
+   desc:'Warm question #5 — the last permitted question.',
+   ev:'node.collect', evmsg:'asked Q5 · questions_asked → 5 (budget reached)',
+   q:5, kv:[['question','anything to add?'],['answer','no'],['counter','→ 5 (max)']]},
+  {lane:'graph',col:'3/6',label:'EDGE BLOCKS Q#6',badge:'block',
+   desc:'questions_asked ≥ 5: a conditional edge routes straight to compute. The model cannot reach a 6th question — the limit is an edge, not a prompt request.',
+   ev:'edge.budget', evmsg:'questions_asked ≥ 5 → route to compute (Q#6 unreachable)',
+   block:true, kv:[['edge','questions_asked >= 5'],['destination','compute'],['Q#6','blocked in graph']]},
+  {lane:'tools',col:'4/6',label:'compute_tax',badge:'code',
+   desc:'Deterministic, pure, Decimal math reads the cited 2025 params + IRS Tax Table. The LLM never touches a figure.',
+   ev:'tool.compute_tax', evmsg:'deterministic · taxable $28,879.35 · tax $3,227 (Tax Table)',
+   code:true, kv:[['std deduction','$15,750 (Single)'],['taxable income','$28,879.35'],['tax','$3,227 (Tax Table, not brackets)']]},
+  {lane:'graph',col:'4/6',label:'TaxResult + line-by-line trace',badge:'code',
+   desc:'Credits are computed in code and shown with reasons: Saver’s $0 (phases out at $39,500 Single), EITC $0 (childless limit $19,104).',
+   ev:'trace.emit', evmsg:'Saver’s $0 (AGI $44,629 > $39,500) · EITC $0 (childless cap $19,104)',
+   code:true, kv:[['Saver’s Credit','$0 — AGI > $39,500'],['EITC','$0 — childless limit $19,104'],['refund','≈ $4,405']]},
+  {lane:'tools',col:'4/6',label:'fill_1040',badge:null,
+   desc:'PyMuPDF fills the official IRS 2025 Form 1040 AcroForm, then bake() flattens it to static text.',
+   ev:'tool.fill_1040', evmsg:'PyMuPDF fill + bake() → completed official 1040',
+   kv:[['form','official IRS 2025 1040'],['method','PyMuPDF fill → bake()']]},
+  {lane:'ui',col:'1/4',label:'Download completed 1040',badge:null,
+   desc:'SSE signals download-ready; the UI surfaces the link. User downloads the completed official 2025 Form 1040.',
+   ev:'ui.download_ready', evmsg:'download ready · completed 2025 Form 1040',
+   kv:[['deliverable','completed official 1040 PDF'],['tax','$3,227'],['refund','≈ $4,405']]},
+];
+
+const ACMAP={user:'ac-user',ui:'ac-ui',api:'ac-api',graph:'ac-graph',tools:'ac-tools'};
+const LANETAG={user:'USER',ui:'UI',api:'API',graph:'GRAPH',tools:'TOOLS'};
+const flow=document.getElementById('flow');
+
+STEPS.forEach((s,i)=>{
+  // spotlight rails before special steps
+  const step=document.createElement('div');
+  step.className='step'+(s.block||s.code?' spotlight':'');
+  let ac=ACMAP[s.lane];
+  if(s.block)ac='ac-block'; if(s.code&&s.lane==='graph')ac='ac-data';
+  let badgeHtml='';
+  if(s.badge==='q')badgeHtml='<span class="lane-tag">counter++</span>';
+  if(s.badge==='block')badgeHtml='<span class="badge block">EDGE BLOCK</span>';
+  if(s.badge==='code')badgeHtml='<span class="badge code">IN CODE</span>';
+  const kv=(s.kv||[]).map(([k,v])=>`<div class="kv"><b>${k}</b> ${v}</div>`).join('');
+  step.innerHTML=`<div class="card ${ac}" data-i="${i}" style="--col:${s.col}">
+      <span class="num">${String(i+1).padStart(2,'0')}</span>
+      <div class="head"><span class="label">${s.label}</span>${badgeHtml}<span class="chev">expand ▾</span></div>
+      <div class="desc">${s.desc}</div>
+      <div class="obs"><span class="pulse"></span>ObservationEvent · <span style="opacity:.85">${s.ev}</span></div>
+      <div class="more">${kv}<div class="ev">→ SSE ${s.ev}\n   ${s.evmsg}</div></div>
+    </div>`;
+  flow.appendChild(step);
+});
+
+const cards=[...flow.querySelectorAll('.card')];
+const bar=document.getElementById('bar'),qc=document.getElementById('qc'),feed=document.getElementById('feed');
+let cur=-1,timer=null;
+
+cards.forEach(c=>c.addEventListener('click',()=>c.classList.toggle('open')));
+
+function emitFeed(s){
+  const row=document.createElement('div');row.className='row';
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+  row.innerHTML=`<span class="t">${t}</span><span class="ty">${s.ev}</span><span class="m">${s.evmsg}</span>`;
+  feed.appendChild(row);feed.scrollTop=feed.scrollHeight;
+}
+function show(i){
+  if(i<0||i>=cards.length)return;
+  if(cur>=0){cards[cur].classList.remove('live');cards[cur].classList.add('done');}
+  cur=i;const c=cards[i],s=STEPS[i];
+  c.classList.add('live');c.scrollIntoView({behavior:'smooth',block:'center'});
+  if(s.q)qc.textContent=s.q;
+  bar.style.width=((i+1)/cards.length*100)+'%';
+  emitFeed(s);
+}
+function next(){ if(cur<cards.length-1)show(cur+1); else stop(); }
+function play(){ stop(); if(cur>=cards.length-1)reset();
+  timer=setInterval(()=>{ if(cur>=cards.length-1){stop();return;} next(); },1050); next(); }
+function stop(){ if(timer){clearInterval(timer);timer=null;} }
+function reset(){ stop(); cards.forEach(c=>{c.classList.remove('live','done','open');});
+  cur=-1;qc.textContent='0';bar.style.width='0';feed.innerHTML=''; }
+
+document.getElementById('play').addEventListener('click',play);
+document.getElementById('step').addEventListener('click',()=>{stop();next();});
+document.getElementById('reset').addEventListener('click',reset);
+window.addEventListener('keydown',e=>{if(e.key==='ArrowRight'){stop();next();}if(e.key===' '){e.preventDefault();timer?stop():play();}});
+</script>
+</body>
+</html>

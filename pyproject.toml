@@ -1,0 +1,31 @@
+[project]
+name = "ontoit"
+version = "0.1.0"
+description = "Agentic tax-filing assistant — a warm chat that turns a W-2 into a completed 2025 Form 1040"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "langgraph>=0.2.50",
+    "anthropic>=0.40",
+    "itsdangerous>=2.2",
+    "python-multipart>=0.0.12",
+    "pdfplumber>=0.11",
+    "pymupdf>=1.24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

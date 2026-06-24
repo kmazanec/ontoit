@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — LangGraph Agent &amp; Four Pillars (Guided Tour)</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --panel:#ffffff; --ink:#1d2733; --muted:#5b6b7d;
+    --line:#d4dde7; --accent:#2f6fed; --accent-soft:#e7f0ff;
+    --good:#1f9d6b; --good-soft:#e3f6ee; --warn:#c97a16; --warn-soft:#fcefdc;
+    --block:#d6452f; --block-soft:#fbe6e1; --purple:#7a52d6; --purple-soft:#efe9fb;
+    --shadow:0 6px 22px rgba(27,48,79,.08);
+    --dim:.26;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef2f8,#f6f8fb 240px);color:var(--ink);-webkit-font-smoothing:antialiased}
+  header.top{padding:18px 26px 10px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header.top h1{font-size:20px;margin:0}
+  header.top .tag{font-size:12.5px;color:var(--muted)}
+  header.top .pill{font-size:11.5px;background:var(--accent-soft);color:var(--accent);padding:3px 10px;border-radius:999px;font-weight:600}
+  .layout{display:grid;grid-template-columns:1fr 400px;gap:18px;padding:6px 26px 26px;align-items:start}
+  @media (max-width:1120px){ .layout{grid-template-columns:1fr} }
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px;overflow:hidden}
+  svg{width:100%;height:auto;display:block}
+
+  .node rect,.node circle{transition:opacity .45s ease,filter .45s ease,stroke .3s ease,fill .3s ease}
+  .node text{transition:opacity .45s ease}
+  .edge{transition:opacity .45s ease,stroke .3s ease}
+  .dim{opacity:var(--dim)}
+  .focus rect.box, .focus circle.box{stroke:var(--accent);stroke-width:2.6;filter:drop-shadow(0 4px 12px rgba(47,111,237,.30))}
+  .focus.good rect.box,.focus.good circle.box{stroke:var(--good);filter:drop-shadow(0 4px 12px rgba(31,157,107,.30))}
+  .focus.block rect.box,.focus.block circle.box{stroke:var(--block);filter:drop-shadow(0 4px 12px rgba(214,69,47,.32))}
+  .focus.purple rect.box,.focus.purple circle.box{stroke:var(--purple);filter:drop-shadow(0 4px 12px rgba(122,82,214,.30))}
+  .edge.hot{stroke:var(--accent);stroke-width:2.8;opacity:1}
+  .edge.block{stroke:var(--block);stroke-width:2.8;opacity:1}
+  .edge.purple{stroke:var(--purple);stroke-width:2.6;opacity:1}
+
+  .ntitle{font-weight:700;font-size:12.5px}
+  .nsub{font-size:10px;fill:var(--muted)}
+  .pillarband{font-size:10px;fill:#8295a8;letter-spacing:.6px;font-weight:700}
+
+  .tour{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    padding:18px 18px 16px;position:sticky;top:14px;display:flex;flex-direction:column;min-height:460px}
+  .tour .step-meta{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tour .num{width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+  .tour.good .num{background:var(--good)} .tour.block .num{background:var(--block)} .tour.purple .num{background:var(--purple)}
+  .tour .count{font-size:12px;color:var(--muted)}
+  .tour .pillar-badge{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.5px;padding:3px 9px;border-radius:999px;background:#eef2f8;color:#6b7d90}
+  .tour.accent .pillar-badge{background:var(--accent-soft);color:var(--accent)}
+  .tour.good .pillar-badge{background:var(--good-soft);color:var(--good)}
+  .tour.block .pillar-badge{background:var(--block-soft);color:var(--block)}
+  .tour.purple .pillar-badge{background:var(--purple-soft);color:var(--purple)}
+  .tour h2{font-size:17px;margin:6px 0 2px;line-height:1.25}
+  .tour .body{font-size:13.5px;line-height:1.55;color:#34465a;flex:1}
+  .tour .body b{color:var(--ink)}
+  .tour .body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:5px;font-size:12px}
+  .tour .callout{margin-top:12px;font-size:12.5px;font-weight:600;border-radius:8px;padding:10px 12px;line-height:1.45}
+  .tour.accent .callout{color:var(--accent);background:var(--accent-soft)}
+  .tour.good .callout{color:var(--good);background:var(--good-soft)}
+  .tour.block .callout{color:var(--block);background:var(--block-soft)}
+  .tour.purple .callout{color:var(--purple);background:var(--purple-soft)}
+  .controls{display:flex;gap:10px;margin-top:16px}
+  .controls button{flex:1;border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 12px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+  .controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .controls button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls button.primary:hover{filter:brightness(1.05);color:#fff}
+  .controls button:disabled{opacity:.4;cursor:default}
+  .progress{display:flex;gap:5px;margin-top:14px;flex-wrap:wrap}
+  .progress .dot{width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer;transition:.2s}
+  .progress .dot.active{background:var(--accent);transform:scale(1.25)}
+  .progress .dot.done{background:#a8c4f4}
+  .hint{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
+  .pillars{display:flex;gap:8px;margin:10px 4px 0;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+  .pillars span{display:inline-flex;align-items:center;gap:6px}
+  .pillars i{width:11px;height:11px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>OntoIt</h1>
+  <span class="pill">LangGraph Agent · Four Pillars</span>
+  <span class="tag">Claude drives, the graph enforces — tour the chat loop, tools, guardrails, observation</span>
+</header>
+
+<div class="layout">
+  <div>
+    <div class="stage">
+      <svg id="diagram" viewBox="0 0 940 620" role="img" aria-label="OntoIt LangGraph agent graph">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9bb0c6"/></marker>
+          <marker id="arrowHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fed"/></marker>
+          <marker id="arrowBlock" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d6452f"/></marker>
+          <marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7a52d6"/></marker>
+        </defs>
+
+        <!-- main edges -->
+        <g fill="none" stroke="#9bb0c6" stroke-width="1.7">
+          <path class="edge" data-edge="intake-extract"  d="M150,90 H210" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="extract-validate" d="M330,90 H390" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="validate-collect" d="M510,90 H570" marker-end="url(#arrow)"/>
+          <!-- re-ask loop collect -> validate (down/back) -->
+          <path class="edge" data-edge="reask" d="M600,120 C600,180 450,180 450,122" marker-end="url(#arrow)" stroke-dasharray="6 4"/>
+          <!-- collect -> compute (cap reached) -->
+          <path class="edge" data-edge="collect-compute" d="M630,120 V230" marker-end="url(#arrow)"/>
+          <!-- guardrail cap edge label region -->
+          <path class="edge" data-edge="cap" d="M690,95 C780,95 780,160 700,250" marker-end="url(#arrowBlock)" stroke-dasharray="6 4"/>
+          <path class="edge" data-edge="compute-fill" d="M630,310 V370" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="fill-done" d="M630,450 V510" marker-end="url(#arrow)"/>
+          <!-- guardrail node from collect -->
+          <path class="edge" data-edge="collect-guard" d="M570,105 C420,140 300,210 280,300" marker-end="url(#arrowBlock)" stroke-dasharray="5 4"/>
+        </g>
+
+        <!-- OBSERVATION rail (dotted, wraps the whole spine) -->
+        <g fill="none" stroke="#b9a6e6" stroke-width="1.4" stroke-dasharray="3 4">
+          <path class="edge" data-edge="obs-rail" d="M40,560 H900"/>
+        </g>
+        <text class="pillarband" x="40" y="552" id="obsband" fill="#9a86cf">OBSERVATION · every transition → ObservationEvent → SSE</text>
+
+        <!-- nodes : main spine -->
+        <g class="node" data-node="intake">
+          <rect class="box" x="40" y="60" width="110" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="56" y="86">intake</text>
+          <text class="nsub" x="56" y="104">start session</text>
+        </g>
+        <g class="node" data-node="extract">
+          <rect class="box" x="210" y="60" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="226" y="86">extract</text>
+          <text class="nsub" x="226" y="104">extract_w2 tool</text>
+        </g>
+        <g class="node" data-node="validate">
+          <rect class="box" x="390" y="60" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="406" y="86">validate</text>
+          <text class="nsub" x="406" y="104">schema + cross-field</text>
+        </g>
+        <g class="node" data-node="collect">
+          <rect class="box" x="570" y="60" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="586" y="86">collect</text>
+          <text class="nsub" x="586" y="104">≤5 questions</text>
+        </g>
+        <g class="node" data-node="compute">
+          <rect class="box" x="570" y="250" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="586" y="276">compute</text>
+          <text class="nsub" x="586" y="294">compute_tax tool</text>
+        </g>
+        <g class="node" data-node="fill">
+          <rect class="box" x="570" y="390" width="120" height="60" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="586" y="416">fill</text>
+          <text class="nsub" x="586" y="434">fill_1040 tool</text>
+        </g>
+        <g class="node" data-node="done">
+          <circle class="box" cx="630" cy="540" r="34" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="630" y="540" text-anchor="middle">done</text>
+          <text class="nsub" x="630" y="556" text-anchor="middle">1040 ready</text>
+        </g>
+
+        <!-- guardrail node -->
+        <g class="node" data-node="guard">
+          <rect class="box" x="190" y="290" width="180" height="80" rx="11" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="208" y="316" fill="#d6452f">guardrail node</text>
+          <text class="nsub" x="208" y="336">off-task / advice →</text>
+          <text class="nsub" x="208" y="352">bounded refusal</text>
+        </g>
+
+        <!-- conditional-edge marker for cap -->
+        <g class="node" data-node="cap">
+          <rect class="box" x="730" y="120" width="170" height="70" rx="11" fill="#fff" stroke="#cdd9e6" stroke-dasharray="5 4"/>
+          <text class="ntitle" x="748" y="146" fill="#d6452f">conditional edge</text>
+          <text class="nsub" x="748" y="164">questions_asked &gt;= 5</text>
+          <text class="nsub" x="748" y="180">→ force compute</text>
+        </g>
+      </svg>
+    </div>
+    <div class="pillars">
+      <span><i style="background:#2f6fed"></i> Chat loop</span>
+      <span><i style="background:#1f9d6b"></i> Tools</span>
+      <span><i style="background:#d6452f"></i> Guardrails</span>
+      <span><i style="background:#7a52d6"></i> Observation</span>
+    </div>
+  </div>
+
+  <aside class="tour" id="tour">
+    <div class="step-meta">
+      <div class="num" id="t-num">1</div>
+      <div class="count" id="t-count">Step 1 of 7</div>
+      <div class="pillar-badge" id="t-pillar">OVERVIEW</div>
+    </div>
+    <h2 id="t-title">Title</h2>
+    <div class="body" id="t-body">Body</div>
+    <div class="callout" id="t-callout" style="display:none"></div>
+    <div class="controls">
+      <button id="prev">‹ Prev</button>
+      <button id="next" class="primary">Next ›</button>
+    </div>
+    <div class="progress" id="progress"></div>
+    <div class="hint">Use ← → arrow keys · click a dot to jump</div>
+  </aside>
+</div>
+
+<script>
+const STEPS = [
+  {
+    pillar:"OVERVIEW", badge:"OVERVIEW", tone:"accent",
+    nodes:["intake","extract","validate","collect","compute","fill","done"],
+    edges:["intake-extract","extract-validate","validate-collect","collect-compute","compute-fill","fill-done"],
+    title:"The graph at a glance",
+    body:"OntoIt is a <b>LangGraph</b> state machine: <code>intake → extract → validate → collect → compute → fill → done</code>. Claude makes decisions inside the nodes; the graph decides what is reachable. We'll tour each of the <b>four pillars</b> that make it a real agent with concrete limits.",
+  },
+  {
+    pillar:"CHAT LOOP", badge:"PILLAR 1 · CHAT LOOP", tone:"accent",
+    nodes:["intake","collect","validate"], edges:["validate-collect","reask"],
+    title:"Pillar 1 — the chat loop (stateful graph + cookie)",
+    body:"The conversation is a real loop, not a single shot. <b>collect</b> asks the filer something, and the <b>validate ↔ collect re-ask loop</b> lets the agent come back for a better answer. State — messages, W-2 JSON, the question counter — persists across turns in the <b>signed cookie</b>, so the graph resumes exactly where it left off.",
+    callout:"Stateful: the graph + cookie remember the whole session between turns.",
+  },
+  {
+    pillar:"TOOLS", badge:"PILLAR 2 · TOOLS", tone:"good",
+    nodes:["extract","compute","fill"], edges:["extract-validate","compute-fill","fill-done"],
+    title:"Pillar 2 — tools (real tool calls)",
+    body:"Three nodes are real, typed tool calls, not the model improvising. <b>extract</b> reads the W-2 (pdfplumber → Claude Vision). <b>compute</b> runs deterministic <code>compute_tax</code> in Decimal. <b>fill</b> writes the official 1040 with PyMuPDF and bakes it. The model orchestrates; the tools execute.",
+    callout:"extract / compute / fill are concrete code with real inputs and outputs.",
+  },
+  {
+    pillar:"GUARDRAILS", badge:"PILLAR 3 · GUARDRAILS", tone:"block",
+    nodes:["cap","collect","compute"], edges:["cap","collect-compute"],
+    title:"Pillar 3a — the question-cap conditional edge",
+    body:"A <b>conditional edge</b> evaluates <code>questions_asked >= 5</code> after every collect turn. When it trips, the only path forward is to <b>compute</b> — asking again is not a reachable state. This is enforced in graph code, <b>outside the LLM's decision path</b>.",
+    callout:"The cap is an edge, not a prompt. Claude cannot route around it.",
+  },
+  {
+    pillar:"GUARDRAILS", badge:"PILLAR 3 · GUARDRAILS", tone:"block",
+    nodes:["guard","validate"], edges:["collect-guard"],
+    title:"Pillar 3b — guardrail node + validation node",
+    body:"Two more code-level guardrails. The <b>guardrail node</b> catches off-task requests or requests for tax <i>advice</i> and returns a <b>bounded refusal</b>. The <b>validate node</b> rejects impossible W-2 numbers before they ever reach the math. Both are nodes/edges in the graph — auditable, not vibes.",
+    callout:"Guardrails live in the graph: question-cap edge + guardrail node + validate node.",
+  },
+  {
+    pillar:"OBSERVATION", badge:"PILLAR 4 · OBSERVATION", tone:"purple",
+    nodes:["intake","extract","validate","collect","compute","fill","done"],
+    edges:["obs-rail"],
+    title:"Pillar 4 — observation (every transition is streamed)",
+    body:"Every single transition in the graph emits a structured <b>ObservationEvent</b> — which node ran, what it decided, what a tool returned, when a guardrail fired. Those events stream <b>live over SSE</b> to the UI's observation panel and to the logs. The system narrates itself.",
+    callout:"Nothing happens silently — every edge crossed is an event a viewer can watch.",
+  },
+  {
+    pillar:"TAKEAWAY", badge:"TAKEAWAY", tone:"accent",
+    nodes:["intake","extract","validate","collect","compute","fill","done","guard","cap"],
+    edges:["intake-extract","extract-validate","validate-collect","collect-compute","compute-fill","fill-done","cap","collect-guard","reask"],
+    title:"Takeaway",
+    body:"Put together, OntoIt is <b>a real LLM-driven agent whose limits are concrete code and edges a judge can point at, not prompt requests.</b> Claude drives the conversation and the vision; the graph guarantees the question cap, the refusals, the validation, the deterministic math, and the full observable trail.",
+    callout:"Driven by an LLM · bounded by code. Point at the edge, not the prompt.",
+  }
+];
+
+const tour=document.getElementById('tour');
+const elNum=document.getElementById('t-num'), elCount=document.getElementById('t-count');
+const elTitle=document.getElementById('t-title'), elBody=document.getElementById('t-body');
+const elPillar=document.getElementById('t-pillar'), elCallout=document.getElementById('t-callout');
+const progress=document.getElementById('progress');
+let i=0;
+
+STEPS.forEach((_,idx)=>{const d=document.createElement('div');d.className='dot';d.onclick=()=>go(idx);progress.appendChild(d);});
+
+function go(n){
+  i=Math.max(0,Math.min(STEPS.length-1,n));
+  const s=STEPS[i];
+  tour.className='tour'+(s.tone?' '+s.tone:'');
+  elNum.textContent=i+1;
+  elCount.textContent=`Step ${i+1} of ${STEPS.length}`;
+  elPillar.textContent=s.badge;
+  elTitle.textContent=s.title;
+  elBody.innerHTML=s.body;
+  if(s.callout){elCallout.style.display='block';elCallout.textContent=s.callout;}
+  else{elCallout.style.display='none';}
+
+  // map tone -> node highlight class
+  const nodeTone = s.tone==='accent' ? '' : (s.tone==='good'?'good':(s.tone==='block'?'block':(s.tone==='purple'?'purple':'')));
+
+  document.querySelectorAll('#diagram .node').forEach(g=>{
+    const id=g.getAttribute('data-node');
+    g.classList.remove('focus','good','block','purple','dim');
+    if(s.nodes.includes(id)){g.classList.add('focus'); if(nodeTone)g.classList.add(nodeTone);}
+    else g.classList.add('dim');
+  });
+  document.querySelectorAll('#diagram .edge').forEach(e=>{
+    const id=e.getAttribute('data-edge');
+    e.classList.remove('hot','block','purple','dim');
+    if(s.edges&&s.edges.includes(id)){
+      if(s.tone==='block'){e.classList.add('block');e.setAttribute('marker-end','url(#arrowBlock)');}
+      else if(s.tone==='purple'){e.classList.add('purple');}
+      else{e.classList.add('hot');e.setAttribute('marker-end','url(#arrowHot)');}
+    } else {
+      e.classList.add('dim');
+      const def = (id==='cap'||id==='collect-guard')?'url(#arrowBlock)':(id==='obs-rail'?null:'url(#arrow)');
+      if(def!==null) e.setAttribute('marker-end',def);
+    }
+  });
+  // observation band emphasis
+  const band=document.getElementById('obsband');
+  band.style.opacity = (s.tone==='purple') ? '1' : '.45';
+
+  [...progress.children].forEach((d,idx)=>{d.classList.toggle('active',idx===i);d.classList.toggle('done',idx<i);});
+  document.getElementById('prev').disabled=(i===0);
+  document.getElementById('next').disabled=(i===STEPS.length-1);
+}
+document.getElementById('next').onclick=()=>go(i+1);
+document.getElementById('prev').onclick=()=>go(i-1);
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(i+1);if(e.key==='ArrowLeft')go(i-1);});
+go(0);
+</script>
+</body>
+</html>

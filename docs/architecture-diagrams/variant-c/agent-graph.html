@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OntoIt — LangGraph Agent Graph</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2933; --ink-soft:#52606d;
+    --line:#d2d6dc; --accent:#3b5b7a; --accent-soft:#e3ebf2;
+    --good:#3f7a5a; --warn:#9a6a2f; --code-bg:#1e2530; --code-ink:#d7e0ea;
+    --p-chat:#3b5b7a; --p-tools:#3f7a5a; --p-guard:#9a6a2f; --p-obs:#3a7a86;
+    --shadow:0 1px 3px rgba(20,30,45,.10),0 6px 18px rgba(20,30,45,.06);
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  header.top{padding:18px 26px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  header.top h1{font-size:18px;margin:0;letter-spacing:.2px}
+  header.top .eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.16em}
+  header.top .sub{color:var(--ink-soft);font-size:13px}
+  nav.variants{margin-left:auto;display:flex;gap:8px;font-family:var(--mono);font-size:12px}
+  nav.variants a{text-decoration:none;color:var(--ink-soft);border:1px solid var(--line);padding:5px 10px;border-radius:6px;background:var(--bg)}
+  nav.variants a.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:0;height:calc(100% - 67px)}
+  .stage{position:relative;overflow:auto;padding:22px 26px}
+  .stage-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+  .stage-head h2{font-size:15px;margin:0;font-weight:600}
+  .stage-head p{margin:0;color:var(--ink-soft);font-size:13px}
+  .pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 14px}
+  .pillar{border:1px solid var(--line);border-left-width:4px;border-radius:9px;padding:9px 11px;background:var(--panel);cursor:pointer}
+  .pillar:hover{background:#fbfdff}
+  .pillar.active{box-shadow:0 0 0 2px var(--accent-soft)}
+  .pillar .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+  .pillar .v{font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .pillar.chat{border-left-color:var(--p-chat)} .pillar.chat .k{color:var(--p-chat)}
+  .pillar.tools{border-left-color:var(--p-tools)} .pillar.tools .k{color:var(--p-tools)}
+  .pillar.guard{border-left-color:var(--p-guard)} .pillar.guard .k{color:var(--p-guard)}
+  .pillar.obs{border-left-color:var(--p-obs)} .pillar.obs .k{color:var(--p-obs)}
+  .diagram-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:18px;overflow:auto}
+  .mermaid{display:flex;justify-content:center}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:10px}
+  .nodelist{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .nodelist button{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:6px;background:#fff;padding:5px 9px;cursor:pointer;color:var(--ink-soft)}
+  .nodelist button:hover{border-color:var(--accent);color:var(--ink)}
+  .nodelist button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  aside.side{background:var(--panel);border-left:1px solid var(--line);padding:22px 22px 40px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+  aside .side-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  aside h3{margin:0;font-size:17px}
+  aside .tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:999px;width:max-content;border:1px solid #c5d6e4;background:var(--accent-soft);color:var(--accent)}
+  aside .body p{margin:0 0 10px;color:var(--ink-soft);font-size:13.5px}
+  aside .body strong{color:var(--ink)}
+  aside .empty{color:var(--ink-soft);font-size:13.5px;font-style:italic}
+  aside .take{border-top:1px dashed var(--line);padding-top:12px;font-size:13.5px}
+  details.src{margin:18px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  details.src summary{cursor:pointer;padding:11px 16px;font-family:var(--mono);font-size:12.5px;color:var(--accent);list-style:none;display:flex;align-items:center;gap:8px;user-select:none}
+  details.src summary::-webkit-details-marker{display:none}
+  details.src summary::before{content:"▸";color:var(--ink-soft)}
+  details.src[open] summary::before{content:"▾"}
+  details.src pre{margin:0;padding:16px;background:var(--code-bg);color:var(--code-ink);font-family:var(--mono);font-size:12px;line-height:1.55;overflow:auto}
+  .fallback{display:none;padding:14px;border:1px dashed var(--warn);border-radius:10px;color:var(--warn);background:#fbf4e9;font-size:13px}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;height:auto}.pillars{grid-template-columns:repeat(2,1fr)}aside.side{border-left:none;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <div class="eyebrow">OntoIt · Architecture</div>
+    <h1>LangGraph Agent Graph</h1>
+  </div>
+  <span class="sub">A real LLM-driven agent whose limits are concrete code and edges — not prompt requests.</span>
+  <nav class="variants">
+    <a href="modules.html">modules</a>
+    <a href="data-flows.html">data-flows</a>
+    <a class="active" href="agent-graph.html">agent-graph</a>
+  </nav>
+</header>
+
+<div class="layout">
+  <section class="stage">
+    <div class="stage-head">
+      <h2>Nodes, edges & the four pillars</h2>
+      <p>Claude drives; the graph enforces. Click a pillar or a node for detail.</p>
+    </div>
+
+    <div class="pillars" id="pillars">
+      <div class="pillar chat" data-p="chat"><div class="k">1 · Chat loop</div><div class="v">stateful graph + signed cookie carry state across turns</div></div>
+      <div class="pillar tools" data-p="tools"><div class="k">2 · Tools</div><div class="v">extract · compute · fill — real actions, not talk</div></div>
+      <div class="pillar guard" data-p="guard"><div class="k">3 · Guardrails</div><div class="v">conditional edge + guardrail node + validation, in code</div></div>
+      <div class="pillar obs" data-p="obs"><div class="k">4 · Observation</div><div class="v">every transition emits an ObservationEvent, streamed live</div></div>
+    </div>
+
+    <div class="diagram-card">
+      <div class="mermaid" id="diagram">
+flowchart TB
+  classDef chat fill:#e3ebf2,stroke:#3b5b7a,stroke-width:1px,color:#1f2933;
+  classDef tools fill:#dfe9e2,stroke:#3f7a5a,stroke-width:1px,color:#1f2933;
+  classDef guard fill:#f3e6d4,stroke:#9a6a2f,stroke-width:1.5px,color:#1f2933;
+  classDef obs fill:#e2eef0,stroke:#3a7a86,stroke-width:1px,color:#1f2933;
+  classDef term fill:#eef0f3,stroke:#52606d,stroke-width:1px,color:#1f2933;
+
+  START((start)):::term
+  INTAKE["intake<br/><small>greet · load signed-cookie state</small>"]:::chat
+  EXTRACT["extract<br/><small>tool: pdfplumber → Vision</small>"]:::tools
+  VALIDATE["validate<br/><small>schema + cross-field checks</small>"]:::guard
+  COLLECT["collect<br/><small>ask warm question · counter++</small>"]:::chat
+  GUARD["guardrail<br/><small>off-task / advice → bounded refusal</small>"]:::guard
+  COMPUTE["compute<br/><small>tool: deterministic tax (Decimal)</small>"]:::tools
+  FILL["fill<br/><small>tool: PyMuPDF fill + bake</small>"]:::tools
+  DONE((done)):::term
+
+  START --> INTAKE --> EXTRACT --> VALIDATE
+  VALIDATE -->|"valid"| COLLECT
+  VALIDATE -->|"failed check → confirm"| COLLECT
+  COLLECT -->|"more needed &amp;<br/>questions_asked &lt; 5"| COLLECT
+  COLLECT -->|"questions_asked &gt;= 5<br/>EDGE BLOCKS Q#35;6"| COMPUTE
+  COLLECT -->|"have what we need"| COMPUTE
+  COLLECT -. "off-task / asks for advice" .-> GUARD
+  GUARD -. "bounded refusal,<br/>return to flow" .-> COLLECT
+  COMPUTE --> FILL --> DONE
+
+  INTAKE -. emits .-> OBS{{ObservationEvent → SSE}}:::obs
+  EXTRACT -. emits .-> OBS
+  VALIDATE -. emits .-> OBS
+  COLLECT -. emits .-> OBS
+  GUARD -. emits .-> OBS
+  COMPUTE -. emits .-> OBS
+  FILL -. emits .-> OBS
+
+  click INTAKE nodeClick
+  click EXTRACT nodeClick
+  click VALIDATE nodeClick
+  click COLLECT nodeClick
+  click GUARD nodeClick
+  click COMPUTE nodeClick
+  click FILL nodeClick
+  click OBS nodeClick
+      </div>
+      <div class="fallback" id="fallback">
+        Mermaid could not load (offline / blocked CDN). The diagram source is in
+        <strong>View mermaid source</strong> below; use the node buttons for the interactive panel.
+      </div>
+      <p class="hint">Bold edge = the guardrail: <code>questions_asked &gt;= 5</code> routes to compute. The validate→collect re-ask loop and the guardrail node are enforced <em>outside</em> the LLM's path.</p>
+      <div class="nodelist" id="nodelist"></div>
+    </div>
+
+    <details class="src">
+      <summary>View mermaid source — diagrams as code (maintainable)</summary>
+      <pre id="srcDump"></pre>
+    </details>
+  </section>
+
+  <aside class="side" id="side">
+    <div class="side-eyebrow">Detail</div>
+    <h3 id="sTitle">Select a node or pillar</h3>
+    <div id="sTag"></div>
+    <div class="body" id="sBody">
+      <p class="empty">Click a pillar card or a graph node. The takeaway: a real LLM-driven agent
+      whose limits are concrete code and edges, not prompt requests.</p>
+    </div>
+    <div class="take" id="sTake" style="display:none"></div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+const TAKE = `<div class="side-eyebrow" style="margin-bottom:6px">Takeaway</div>
+A real LLM-driven agent whose <strong>limits are concrete code and edges</strong>, not prompt requests.
+Tax math is deterministic and never the LLM (LLM return arithmetic ~23–32% on TaxCalcBench).`;
+
+const NODES = {
+  INTAKE:{t:"intake",pillar:"Chat loop",cls:"chat",
+    body:`<p><strong>Role.</strong> Greets the user and loads session state from the
+      <strong>signed cookie</strong> (messages, W-2 JSON, question counter), then hands off to extract.</p>
+      <p><strong>Pillar.</strong> Chat loop — the stateful graph plus the cookie carry context across every turn,
+      so the conversation has memory without a server-side store.</p>`},
+  EXTRACT:{t:"extract",pillar:"Tools",cls:"tools",
+    body:`<p><strong>Role.</strong> Calls the <code>extract_w2</code> tool — pdfplumber text first,
+      <strong>Claude Vision</strong> fallback — returning W-2 JSON with per-field confidence.</p>
+      <p><strong>Pillar.</strong> Tools — a real action that reads a document, not a description of one.</p>`},
+  VALIDATE:{t:"validate",pillar:"Guardrails",cls:"guard",
+    body:`<p><strong>Role.</strong> Schema + cross-field validation (<strong>Box 2 &lt; Box 1</strong>,
+      SS ≈ <strong>6.2%</strong>). Clean data flows on; suspect data routes to a confirm-question via the
+      validate→collect edge.</p>
+      <p><strong>Pillar.</strong> Guardrails — input validation in code, before any number reaches the tax engine.</p>`},
+  COLLECT:{t:"collect",pillar:"Chat loop + Guardrails",cls:"chat",
+    body:`<p><strong>Role.</strong> Asks one warm question at a time (status, dependents, confirmations),
+      incrementing the counter in signed state. A <strong>self-loop</strong> re-asks while more is needed and
+      <code>questions_asked &lt; 5</code>.</p>
+      <p><strong>Pillar.</strong> Both — it is the conversational heart <em>and</em> the node the question-cap
+      edge guards. The cap is graph topology, not prompt text.</p>`},
+  GUARD:{t:"guardrail node",pillar:"Guardrails",cls:"guard",
+    body:`<p><strong>Role.</strong> When the user goes off-task or asks for tax <em>advice</em>, the flow
+      diverts here for a <strong>bounded refusal</strong>, then returns to collect.</p>
+      <p><strong>Pillar.</strong> Guardrails — scope/safety enforced as a node on the graph. This is an
+      educational exercise, not tax advice, and the boundary is structural, not just a prompt instruction.</p>`},
+  COMPUTE:{t:"compute",pillar:"Tools",cls:"tools",
+    body:`<p><strong>Role.</strong> Calls the deterministic <code>compute_tax</code> tool: standard deduction,
+      taxable income, tax from the <strong>IRS 2025 Tax Table</strong>, credits (with reasons), refund/owed —
+      all in <strong>Decimal</strong>.</p>
+      <p><strong>Pillar.</strong> Tools — and the line where the architecture refuses to let the LLM do math.
+      Sample: taxable $28,879.35 → tax $3,227 → refund ≈ $4,405; both credits $0 with reasons.</p>`},
+  FILL:{t:"fill",pillar:"Tools",cls:"tools",
+    body:`<p><strong>Role.</strong> Calls <code>fill_1040</code> — <strong>PyMuPDF</strong> fills the official
+      2025 Form 1040, then bakes/flattens it for download.</p>
+      <p><strong>Pillar.</strong> Tools — produces the artifact the brief defines as done: a real, downloadable
+      filled return.</p>`},
+  OBS:{t:"ObservationEvent → SSE",pillar:"Observation",cls:"obs",
+    body:`<p><strong>Role.</strong> <strong>Every transition</strong> emits a structured ObservationEvent,
+      streamed live over SSE to the UI's observation panel (and mirrored to logs + /health).</p>
+      <p><strong>Pillar.</strong> Observation — the agent's decisions are watchable in real time by a judge,
+      not buried in a log file.</p>`},
+};
+
+const PILLARS = {
+  chat:{t:"Pillar 1 — Chat loop",cls:"chat",
+    body:`<p>State crosses turns via the <strong>LangGraph</strong> typed state machine plus the
+      <strong>signed cookie</strong>. No server-side store; any instance can resume any session.</p>
+      <p><strong>Where in the graph:</strong> <code>intake</code> (loads state), <code>collect</code>
+      (the turn-by-turn conversation), and the cookie that persists between requests.</p>`},
+  tools:{t:"Pillar 2 — Tools",cls:"tools",
+    body:`<p>The agent takes <strong>real actions</strong> through three tools:
+      <code>extract_w2</code>, <code>compute_tax</code>, and <code>fill_1040</code> — reading a document,
+      computing the return, and producing the filled PDF.</p>
+      <p><strong>Where in the graph:</strong> nodes <code>extract</code>, <code>compute</code>, <code>fill</code>.</p>`},
+  guard:{t:"Pillar 3 — Guardrails",cls:"guard",
+    body:`<p>Three layers, all <strong>in code, outside the LLM's path</strong>:
+      the <strong>conditional edge</strong> <code>questions_asked &gt;= 5</code> (blocks Q#6),
+      the <strong>guardrail node</strong> (off-task/advice → bounded refusal), and the
+      <strong>validation node</strong> (schema + cross-field checks).</p>
+      <p><strong>Why it matters:</strong> "It's enforced and visible" beats "it's in the prompt."
+      The model can misbehave; the edges still hold.</p>`},
+  obs:{t:"Pillar 4 — Observation",cls:"obs",
+    body:`<p><strong>Every transition</strong> emits an <strong>ObservationEvent</strong>, fanned out to
+      logs, <code>/health</code>, and an <strong>SSE</strong> stream rendered live in the UI.</p>
+      <p><strong>Where in the graph:</strong> the dashed emits-edges from every node into the
+      ObservationEvent sink.</p>`},
+};
+
+function clearActive(){
+  document.querySelectorAll('.pillar').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nodelist button').forEach(b=>b.classList.remove('active'));
+}
+function render(t,tagText,tagCls,body){
+  document.getElementById('sTitle').textContent=t;
+  document.getElementById('sTag').innerHTML='<span class="tag '+tagCls+'">'+tagText+'</span>';
+  document.getElementById('sBody').innerHTML=body;
+  const take=document.getElementById('sTake'); take.style.display='block'; take.innerHTML=TAKE;
+  document.getElementById('side').scrollTop=0;
+}
+function showNode(id){
+  const n=NODES[id]; if(!n)return; clearActive();
+  const btn=document.querySelector('.nodelist button[data-id="'+id+'"]'); if(btn)btn.classList.add('active');
+  render(n.t, n.pillar, n.cls, n.body);
+}
+function showPillar(p){
+  const x=PILLARS[p]; if(!x)return; clearActive();
+  document.querySelector('.pillar[data-p="'+p+'"]').classList.add('active');
+  render(x.t, "four-pillar enforcement", x.cls, x.body);
+}
+window.nodeClick=showNode;
+
+document.querySelectorAll('.pillar').forEach(el=>el.addEventListener('click',()=>showPillar(el.dataset.p)));
+
+const nl=document.getElementById('nodelist');
+Object.keys(NODES).forEach(id=>{
+  const b=document.createElement('button'); b.dataset.id=id; b.textContent=NODES[id].t;
+  b.onclick=()=>showNode(id); nl.appendChild(b);
+});
+
+const srcEl=document.getElementById('diagram');
+const rawSrc = srcEl ? srcEl.textContent.trim() : '';
+document.getElementById('srcDump').textContent = rawSrc;
+
+const FONT='-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+async function renderDiagram(){
+  if(!window.mermaid){ document.getElementById('fallback').style.display='block'; return; }
+  mermaid.initialize({
+    startOnLoad:false, securityLevel:'loose', theme:'base',
+    themeVariables:{
+      fontFamily:FONT, fontSize:'13px',
+      primaryColor:'#e3ebf2', primaryBorderColor:'#3b5b7a', primaryTextColor:'#1f2933',
+      lineColor:'#90a0b0', clusterBkg:'#fbfcfd', clusterBorder:'#d2d6dc', tertiaryColor:'#fbfcfd'
+    }
+  });
+  try{
+    const {svg,bindFunctions} = await mermaid.render('ontoit-graph', rawSrc);
+    srcEl.innerHTML = svg;
+    if(bindFunctions) bindFunctions(srcEl);
+    document.querySelectorAll('.mermaid .node').forEach(n=>n.style.cursor='pointer');
+  }catch(err){
+    console.error(err);
+    document.getElementById('fallback').style.display='block';
+  }
+}
+renderDiagram();
+</script>
+</body>
+</html>

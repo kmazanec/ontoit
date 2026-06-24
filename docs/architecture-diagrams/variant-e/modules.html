@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — Component Map (Guided Tour)</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --panel:#ffffff; --ink:#1d2733; --muted:#5b6b7d;
+    --line:#d4dde7; --accent:#2f6fed; --accent-soft:#e7f0ff;
+    --good:#1f9d6b; --good-soft:#e3f6ee; --warn:#c97a16; --warn-soft:#fcefdc;
+    --shadow:0 6px 22px rgba(27,48,79,.08);
+    --dim:.32;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#eef2f8,#f6f8fb 240px);
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+  header.top{
+    padding:18px 26px 10px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  header.top h1{font-size:20px;margin:0;letter-spacing:.2px}
+  header.top .tag{font-size:12.5px;color:var(--muted)}
+  header.top .pill{
+    font-size:11.5px;background:var(--accent-soft);color:var(--accent);
+    padding:3px 10px;border-radius:999px;font-weight:600;
+  }
+  .layout{
+    display:grid; grid-template-columns:1fr 380px; gap:18px;
+    padding:6px 26px 26px; align-items:start;
+  }
+  @media (max-width:1080px){ .layout{grid-template-columns:1fr} }
+
+  .stage{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:14px; overflow:hidden;
+  }
+  svg{width:100%; height:auto; display:block}
+
+  /* node styling driven by classes toggled in JS */
+  .node rect, .node .chip{ transition:opacity .45s ease, filter .45s ease, stroke .3s ease; }
+  .node text{ transition:opacity .45s ease; }
+  .edge{ transition:opacity .45s ease, stroke .3s ease; }
+  .dim{ opacity:var(--dim); }
+  .focus rect.box{ stroke:var(--accent); stroke-width:2.4; filter:drop-shadow(0 4px 12px rgba(47,111,237,.30)); }
+  .focus.good rect.box{ stroke:var(--good); filter:drop-shadow(0 4px 12px rgba(31,157,107,.30)); }
+  .focus.warn rect.box{ stroke:var(--warn); filter:drop-shadow(0 4px 12px rgba(201,122,22,.30)); }
+  .edge.hot{ stroke:var(--accent); stroke-width:2.6; opacity:1; }
+
+  .ntitle{font-weight:700; font-size:13.5px}
+  .nsub{font-size:11px; fill:var(--muted)}
+
+  /* Tour panel */
+  .tour{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:18px 18px 16px; position:sticky; top:14px;
+    display:flex; flex-direction:column; min-height:420px;
+  }
+  .tour .step-meta{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tour .num{
+    width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-weight:700;font-size:14px;flex:none;
+  }
+  .tour.good .num{background:var(--good)} .tour.warn .num{background:var(--warn)}
+  .tour .count{font-size:12px;color:var(--muted)}
+  .tour h2{font-size:17px;margin:6px 0 2px;line-height:1.25}
+  .tour .body{font-size:13.5px;line-height:1.55;color:#34465a;flex:1}
+  .tour .body b{color:var(--ink)}
+  .tour .adr{
+    margin-top:12px;font-size:11.5px;color:var(--accent);background:var(--accent-soft);
+    border-radius:8px;padding:8px 11px;font-weight:600; display:flex; gap:7px; align-items:center;
+  }
+  .tour.good .adr{color:var(--good);background:var(--good-soft)}
+  .tour.warn .adr{color:var(--warn);background:var(--warn-soft)}
+  .tour .adr code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:5px}
+  .controls{display:flex;gap:10px;margin-top:16px;align-items:center}
+  .controls button{
+    flex:1;border:1px solid var(--line);background:#fff;color:var(--ink);
+    padding:10px 12px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;
+    transition:.15s; font-family:inherit;
+  }
+  .controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .controls button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls button.primary:hover{filter:brightness(1.05);color:#fff}
+  .controls button:disabled{opacity:.4;cursor:default}
+  .progress{display:flex;gap:5px;margin-top:14px;flex-wrap:wrap}
+  .progress .dot{
+    width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer;transition:.2s;
+  }
+  .progress .dot.active{background:var(--accent);transform:scale(1.25)}
+  .progress .dot.done{background:#a8c4f4}
+  .hint{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 4px 0;font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>OntoIt</h1>
+  <span class="pill">Component Map</span>
+  <span class="tag">agentic tax-filing assistant · click the tour to walk the architecture</span>
+</header>
+
+<div class="layout">
+  <div>
+    <div class="stage">
+      <svg id="diagram" viewBox="0 0 920 660" role="img" aria-label="OntoIt component map">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#9bb0c6"/>
+          </marker>
+          <marker id="arrowHot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2f6fed"/>
+          </marker>
+        </defs>
+
+        <!-- EDGES (drawn first, under nodes) -->
+        <g fill="none" stroke="#9bb0c6" stroke-width="1.6">
+          <path class="edge" data-edge="ui-api"      d="M210,120 H330" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="api-cookie"  d="M450,150 V210" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="api-graph"   d="M450,120 H560" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="graph-claude" d="M650,150 V210" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="graph-tools" d="M650,150 V300" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="tools-params" d="M650,400 V470" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="graph-obs"   d="M560,330 H470" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="obs-sinks"   d="M380,400 V470" marker-end="url(#arrow)"/>
+          <path class="edge" data-edge="obs-ui"      d="M330,360 C200,360 120,250 195,138" marker-end="url(#arrow)"/>
+        </g>
+
+        <!-- NODES -->
+        <!-- Web UI -->
+        <g class="node" data-node="ui">
+          <rect class="box" x="40" y="70" width="170" height="100" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="58" y="98">Web UI</text>
+          <text class="nsub" x="58" y="118">Chat panel</text>
+          <text class="nsub" x="58" y="134">Live observation panel</text>
+          <text class="nsub" x="58" y="150">Tax-trace panel</text>
+        </g>
+
+        <!-- FastAPI -->
+        <g class="node" data-node="api">
+          <rect class="box" x="330" y="70" width="120" height="100" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="348" y="98">FastAPI</text>
+          <text class="nsub" x="348" y="118">Serves UI</text>
+          <text class="nsub" x="348" y="134">SSE stream</text>
+          <text class="nsub" x="348" y="150">No server store</text>
+        </g>
+
+        <!-- Cookie -->
+        <g class="node" data-node="cookie">
+          <rect class="box" x="330" y="210" width="120" height="80" rx="12" fill="#fbfdff" stroke="#cdd9e6" stroke-dasharray="5 4"/>
+          <text class="ntitle" x="348" y="236">Signed cookie</text>
+          <text class="nsub" x="348" y="256">messages + W-2 JSON</text>
+          <text class="nsub" x="348" y="272">question counter</text>
+        </g>
+
+        <!-- LangGraph agent -->
+        <g class="node" data-node="graph">
+          <rect class="box" x="560" y="70" width="180" height="100" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="578" y="98">LangGraph agent</text>
+          <text class="nsub" x="578" y="118">Python</text>
+          <text class="nsub" x="578" y="134">Claude drives,</text>
+          <text class="nsub" x="578" y="150">graph enforces</text>
+        </g>
+
+        <!-- Claude -->
+        <g class="node" data-node="claude">
+          <rect class="box" x="560" y="210" width="180" height="80" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="578" y="236">Anthropic Claude</text>
+          <text class="nsub" x="578" y="256">LLM reasoning</text>
+          <text class="nsub" x="578" y="272">W-2 vision</text>
+        </g>
+
+        <!-- Tools -->
+        <g class="node" data-node="tools">
+          <rect class="box" x="560" y="300" width="320" height="100" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="578" y="326">Tools</text>
+          <text class="nsub" x="578" y="346">extract_w2 · pdfplumber → Claude Vision (confidence)</text>
+          <text class="nsub" x="578" y="364">compute_tax · deterministic · pure · Decimal</text>
+          <text class="nsub" x="578" y="382">fill_1040 · PyMuPDF fill + bake</text>
+        </g>
+
+        <!-- Tax params -->
+        <g class="node" data-node="params">
+          <rect class="box" x="560" y="470" width="320" height="80" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="578" y="496">2025 tax params + IRS Tax Table</text>
+          <text class="nsub" x="578" y="516">std deduction $15,750 Single / $31,500 MFJ</text>
+          <text class="nsub" x="578" y="534">cited sources · table lookup, not bracket math</text>
+        </g>
+
+        <!-- Observation emitter -->
+        <g class="node" data-node="obs">
+          <rect class="box" x="290" y="320" width="180" height="80" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="308" y="346">ObservationEvent</text>
+          <text class="nsub" x="308" y="366">emitter</text>
+          <text class="nsub" x="308" y="384">every transition</text>
+        </g>
+
+        <!-- Sinks -->
+        <g class="node" data-node="sinks">
+          <rect class="box" x="290" y="470" width="180" height="80" rx="12" fill="#fff" stroke="#cdd9e6"/>
+          <text class="ntitle" x="308" y="496">Sinks</text>
+          <text class="nsub" x="308" y="516">logs · /health</text>
+          <text class="nsub" x="308" y="534">SSE → browser</text>
+        </g>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:#2f6fed"></i> in focus</span>
+      <span><i style="background:#1f9d6b"></i> deterministic / trusted</span>
+      <span><i style="background:#c97a16"></i> guardrail boundary</span>
+      <span><i style="background:#d4dde7"></i> context</span>
+    </div>
+  </div>
+
+  <!-- TOUR -->
+  <aside class="tour" id="tour">
+    <div class="step-meta">
+      <div class="num" id="t-num">1</div>
+      <div class="count" id="t-count">Step 1 of 9</div>
+    </div>
+    <h2 id="t-title">Title</h2>
+    <div class="body" id="t-body">Body</div>
+    <div class="adr" id="t-adr"><span>📐</span><span id="t-adr-text"></span></div>
+    <div class="controls">
+      <button id="prev">‹ Prev</button>
+      <button id="next" class="primary">Next ›</button>
+    </div>
+    <div class="progress" id="progress"></div>
+    <div class="hint">Use ← → arrow keys · click a dot to jump</div>
+  </aside>
+</div>
+
+<script>
+const STEPS = [
+  {
+    nodes:["ui"], edges:["obs-ui"], tone:"",
+    title:"Web UI — what the filer sees",
+    body:"Three panels in one screen. A <b>chat panel</b> for the conversation, a <b>live observation panel</b> that streams what the agent is doing right now, and a <b>tax-trace panel</b> that shows the line-by-line math as it is computed. Nothing is hidden behind a black box.",
+    adr:"ADR-001 · Transparent single-page UI — observation + trace are first-class, not debug logs."
+  },
+  {
+    nodes:["api"], edges:["ui-api"], tone:"",
+    title:"FastAPI — the thin server",
+    body:"FastAPI serves the UI, opens the <b>SSE stream</b> for live events, and holds state in a <b>signed cookie</b> — there is deliberately <b>no server-side store</b> or database. The server is stateless; every request carries its own context.",
+    adr:"ADR-002 · Stateless server, signed-cookie session — no DB, trivially horizontally scalable."
+  },
+  {
+    nodes:["cookie"], edges:["api-cookie"], tone:"warn",
+    title:"Signed cookie — the whole session lives here",
+    body:"The cookie carries the <b>message history</b>, the extracted <b>W-2 JSON</b>, and the <b>question counter</b>. It is cryptographically signed so the client can hold it but cannot tamper with it. That counter is what later lets the graph hard-block question #6.",
+    adr:"ADR-003 · Signed-cookie state model — tamper-evident, server keeps nothing."
+  },
+  {
+    nodes:["graph"], edges:["api-graph"], tone:"",
+    title:"LangGraph agent — Claude drives, the graph enforces",
+    body:"The agent is a real <b>LangGraph</b> state machine in Python. Claude makes the moment-to-moment decisions, but the <b>graph topology and edges</b> decide what is even reachable. The interesting limits live in the graph, not in the prompt.",
+    adr:"ADR-004 · LangGraph over a free-form loop — limits become edges a judge can point at."
+  },
+  {
+    nodes:["claude"], edges:["graph-claude"], tone:"",
+    title:"Anthropic Claude — reasoning + W-2 vision",
+    body:"Claude is the LLM the graph calls for natural-language reasoning <i>and</i> for <b>vision</b> when reading a W-2 image. Claude is powerful but never trusted with arithmetic — see the next stop.",
+    adr:"ADR-005 · Claude for language + vision; arithmetic explicitly excluded from the model."
+  },
+  {
+    nodes:["tools"], edges:["graph-tools"], tone:"good",
+    title:"Tools — real, typed, deterministic",
+    body:"Three tools do the real work. <b>extract_w2</b> tries pdfplumber text first, falls back to <b>Claude Vision</b>, and reports a confidence. <b>compute_tax</b> is <b>deterministic, pure, and uses Decimal</b> — no LLM. <b>fill_1040</b> uses PyMuPDF to fill the official form and bake it flat.",
+    adr:"ADR-006 · Tax math is code, not the LLM (TaxCalcBench LLM accuracy ~23–32%)."
+  },
+  {
+    nodes:["params"], edges:["tools-params"], tone:"good",
+    title:"2025 tax params + IRS Tax Table",
+    body:"compute_tax reads from <b>cited 2025 parameters</b>: standard deduction <b>$15,750 Single / $31,500 MFJ</b>, and the <b>IRS 2025 Tax Table</b>. For the sample filer ($28,879.35 taxable), tax is the <b>$3,227 table value</b> — a lookup, not bracket multiplication.",
+    adr:"ADR-007 · Cited tax constants + official Tax Table lookup, versioned in code."
+  },
+  {
+    nodes:["obs"], edges:["graph-obs"], tone:"",
+    title:"ObservationEvent emitter",
+    body:"Every graph transition emits a structured <b>ObservationEvent</b>: which node ran, what it decided, what a tool returned. This is the single source of truth behind both the live panel and the audit log.",
+    adr:"ADR-008 · One ObservationEvent type for every transition — observability by construction."
+  },
+  {
+    nodes:["sinks","ui"], edges:["obs-sinks","obs-ui"], tone:"",
+    title:"Sinks — logs, /health, and the live stream",
+    body:"Events fan out to <b>structured logs</b>, feed the <b>/health</b> endpoint, and stream over <b>SSE</b> straight back to the Web UI's observation panel. The loop closes: the user watches the same events an operator does.",
+    adr:"ADR-009 · SSE fan-out — the demo's transparency and prod observability share one pipe."
+  }
+];
+
+const tour = document.getElementById('tour');
+const elNum = document.getElementById('t-num');
+const elCount = document.getElementById('t-count');
+const elTitle = document.getElementById('t-title');
+const elBody = document.getElementById('t-body');
+const elAdr = document.getElementById('t-adr');
+const elAdrText = document.getElementById('t-adr-text');
+const progress = document.getElementById('progress');
+let i = 0;
+
+STEPS.forEach((_,idx)=>{
+  const d=document.createElement('div');
+  d.className='dot'; d.onclick=()=>go(idx);
+  progress.appendChild(d);
+});
+
+function go(n){
+  i = Math.max(0, Math.min(STEPS.length-1, n));
+  const s = STEPS[i];
+  // tone
+  tour.className = 'tour' + (s.tone? ' '+s.tone : '');
+  elNum.textContent = i+1;
+  elCount.textContent = `Step ${i+1} of ${STEPS.length}`;
+  elTitle.textContent = s.title;
+  elBody.innerHTML = s.body;
+  elAdrText.textContent = s.adr;
+
+  // nodes
+  document.querySelectorAll('#diagram .node').forEach(g=>{
+    const id = g.getAttribute('data-node');
+    g.classList.remove('focus','good','warn','dim');
+    if(s.nodes.includes(id)){
+      g.classList.add('focus');
+      if(s.tone) g.classList.add(s.tone);
+    } else {
+      g.classList.add('dim');
+    }
+  });
+  // edges
+  document.querySelectorAll('#diagram .edge').forEach(e=>{
+    const id = e.getAttribute('data-edge');
+    e.classList.remove('hot','dim');
+    if(s.edges && s.edges.includes(id)){
+      e.classList.add('hot');
+      e.setAttribute('marker-end','url(#arrowHot)');
+    } else {
+      e.classList.add('dim');
+      e.setAttribute('marker-end','url(#arrow)');
+    }
+  });
+  // progress dots
+  [...progress.children].forEach((d,idx)=>{
+    d.classList.toggle('active', idx===i);
+    d.classList.toggle('done', idx<i);
+  });
+  document.getElementById('prev').disabled = (i===0);
+  document.getElementById('next').disabled = (i===STEPS.length-1);
+}
+
+document.getElementById('next').onclick=()=>go(i+1);
+document.getElementById('prev').onclick=()=>go(i-1);
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight') go(i+1);
+  if(e.key==='ArrowLeft') go(i-1);
+});
+go(0);
+</script>
+</body>
+</html>

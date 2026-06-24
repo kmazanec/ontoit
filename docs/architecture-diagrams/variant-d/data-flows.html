@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OntoIt — Filing Session Flow</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121723; --panel2:#161d2c; --ink:#e8edf6; --muted:#8a97ad;
+    --line:#26314a; --accent:#4f8cff; --accent2:#22d3a6; --warn:#ffb454; --danger:#ff6b6b;
+    --chip:#1b2436; --shadow:0 8px 30px rgba(0,0,0,.45); --claude:#d97757;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:radial-gradient(1200px 700px at 30% -10%, #16213a 0%, var(--bg) 55%);
+    color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;}
+  .wrap{height:100vh; display:flex; flex-direction:column; padding:22px 30px 16px; max-width:1560px; margin:0 auto;}
+  .eyebrow{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:700;}
+  .eyebrow b{color:var(--accent2)}
+  h1{margin:4px 0 0; font-size:30px; line-height:1.12; font-weight:800; letter-spacing:-.01em;}
+  h1 .hl{color:var(--accent2)} h1 .hl2{color:var(--warn)}
+  .sub{color:var(--muted); font-size:13.5px; margin-top:3px}
+  .chips{display:flex; gap:9px; flex-wrap:wrap; margin:13px 0 4px;}
+  .chip{background:var(--chip); border:1px solid var(--line); border-radius:999px; padding:6px 13px; font-size:12.5px; display:flex; align-items:center; gap:7px; white-space:nowrap;}
+  .chip b{color:var(--accent2); font-weight:700}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .chip.r b{color:var(--warn)} .chip.r .dot{background:var(--warn)}
+  .stage{flex:1; min-height:0; display:flex; gap:18px; margin-top:10px;}
+  .flow{flex:1; min-width:0; background:linear-gradient(180deg,#0f1420,#0c111b); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:16px 18px; display:flex; flex-direction:column; overflow:hidden; position:relative;}
+  .lanes{display:flex; gap:0; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700; border-bottom:1px solid var(--line); padding-bottom:7px; margin-bottom:6px;}
+  .lanes div{flex:1; text-align:center}
+  .lanes div b{color:var(--accent)}
+  .steps{flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-between; gap:4px; position:relative;}
+  .step{display:grid; grid-template-columns:30px 1fr; gap:12px; align-items:center; cursor:pointer; padding:5px 8px; border-radius:10px; transition:background .12s; position:relative;}
+  .step:hover, .step.active{background:#15203450;}
+  .step .num{width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; background:var(--panel2); border:1.5px solid var(--accent); color:var(--accent);}
+  .step.tool .num{border-color:var(--accent2); color:var(--accent2)}
+  .step.guard .num{border-color:var(--warn); color:var(--warn)}
+  .step.claude .num{border-color:var(--claude); color:var(--claude)}
+  .step .body{display:flex; align-items:center; gap:12px}
+  .step .label{font-weight:700; font-size:14px; min-width:200px}
+  .step .meta{font-size:12px; color:var(--muted)}
+  .step .who{font-size:9px; letter-spacing:.1em; font-weight:800; padding:2px 7px; border-radius:5px; text-transform:uppercase;}
+  .who.api{background:#13233f; color:#7fb0ff} .who.claude{background:#2a1810; color:#e0936f}
+  .who.tool{background:#0f2620; color:#4fe0bb} .who.guard{background:#2c2208; color:#ffc878}
+  .step .obs{margin-left:auto; font-size:10px; color:#4f8cff; opacity:.6; display:flex; align-items:center; gap:5px; white-space:nowrap}
+  .step .obs::before{content:""; width:6px; height:6px; border-radius:50%; background:#4f8cff; box-shadow:0 0 6px #4f8cff;}
+  .connector{position:absolute; left:22px; top:34px; bottom:34px; width:2px; background:linear-gradient(180deg,var(--accent),var(--accent2)); opacity:.3;}
+  .block-badge{margin-left:8px; font-size:9px; font-weight:800; letter-spacing:.08em; background:#3a1414; color:#ff8c8c; border:1px solid #6b2a2a; padding:2px 7px; border-radius:5px;}
+  /* detail */
+  .detail{width:330px; flex-shrink:0; background:var(--panel); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px; display:flex; flex-direction:column; overflow:hidden;}
+  .detail .ph{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .detail h2{margin:6px 0 10px; font-size:19px; font-weight:800; letter-spacing:-.01em}
+  .detail p{color:#c4cee0; font-size:13.5px; margin:0 0 12px}
+  .detail .evt{background:#0e1a14; border:1px solid #1d3a2c; border-left:3px solid var(--accent2); border-radius:9px; padding:10px 12px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#9fe6cb; margin-top:auto;}
+  .detail .evt .k{color:#5fa0a0}
+  .result{background:var(--panel2); border:1px solid var(--line); border-radius:11px; padding:12px 13px; margin-top:12px;}
+  .result .rh{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin-bottom:7px}
+  .result .row{display:flex; justify-content:space-between; font-size:12.5px; padding:2px 0}
+  .result .row b{font-weight:700}
+  .result .row.big{font-size:14px; border-top:1px solid var(--line); margin-top:5px; padding-top:7px}
+  .result .row.big b{color:var(--accent2)}
+  .result .row.zero b{color:var(--muted)}
+  .hint{font-size:11px; color:var(--muted); text-align:center; margin-top:8px}
+  @media (max-width:1080px){ body{overflow:auto} .wrap{height:auto} .stage{flex-direction:column} .detail{width:auto} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">OntoIt · <b>filing session sequence</b> · W-2 → 1040</div>
+  <h1><span class="hl">W-2 in → correct 1040 out,</span> <span class="hl2">≤5 questions,</span> every step observable.</h1>
+  <div class="sub">One linear, instrumented pass. Claude converses; tools compute and render; a graph edge hard-stops the questions at five.</div>
+
+  <div class="chips">
+    <div class="chip"><span class="dot"></span>Sample: <b>$44,629.35</b> wages · <b>$7,631.62</b> withheld · Single</div>
+    <div class="chip"><span class="dot"></span>Taxable income <b>$28,879.35</b></div>
+    <div class="chip"><span class="dot"></span>Tax <b>$3,227</b> (IRS 2025 Tax Table)</div>
+    <div class="chip"><span class="dot"></span>Refund <b>~$4,405</b></div>
+    <div class="chip r"><span class="dot"></span>Hard cap: <b>graph blocks Q#6</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="flow">
+      <div class="lanes"><div>Filer</div><div><b>FastAPI + Graph</b></div><div>Claude</div><div>Tools</div></div>
+      <div class="steps" id="steps">
+        <div class="connector"></div>
+        <div class="step claude" data-key="upload">
+          <div class="num">1</div>
+          <div class="body"><span class="label">Upload W-2</span><span class="who claude">filer</span><span class="meta">drag a PDF, or use the bundled sample</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step" data-key="invoke">
+          <div class="num">2</div>
+          <div class="body"><span class="label">FastAPI invokes graph</span><span class="who api">api</span><span class="meta">reads cookie, starts the run</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step tool" data-key="extract">
+          <div class="num">3</div>
+          <div class="body"><span class="label">extract_w2</span><span class="who tool">tool</span><span class="meta">pdfplumber → Claude Vision · confidence</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step guard" data-key="validate">
+          <div class="num">4</div>
+          <div class="body"><span class="label">validate</span><span class="who guard">guard</span><span class="meta">schema + cross-field checks</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step claude" data-key="ask">
+          <div class="num">5</div>
+          <div class="body"><span class="label">≤5 warm questions</span><span class="who claude">claude</span><span class="meta">filing status · dependents · confirm figures</span><span class="block-badge">EDGE BLOCKS Q#6</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step tool" data-key="compute">
+          <div class="num">6</div>
+          <div class="body"><span class="label">compute_tax</span><span class="who tool">tool</span><span class="meta">deterministic · Decimal · IRS Tax Table</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step" data-key="trace">
+          <div class="num">7</div>
+          <div class="body"><span class="label">TaxResult + line-by-line trace</span><span class="who api">api</span><span class="meta">every 1040 line, shown live</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step tool" data-key="fill">
+          <div class="num">8</div>
+          <div class="body"><span class="label">fill_1040</span><span class="who tool">tool</span><span class="meta">PyMuPDF fill + bake (flatten)</span><span class="obs">emits event</span></div>
+        </div>
+        <div class="step" data-key="download">
+          <div class="num">9</div>
+          <div class="body"><span class="label">Download official 2025 Form 1040</span><span class="who api">api</span><span class="meta">the real IRS PDF, finalized</span><span class="obs">emits event</span></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="detail" id="detail">
+      <div class="ph">Step detail</div>
+      <h2 id="d-title">A single observable pass</h2>
+      <p id="d-desc">Hover any step to see what happens and the ObservationEvent it streams to the UI over SSE. Every transition is visible to the judge in real time.</p>
+      <div class="result">
+        <div class="rh">Bundled sample result</div>
+        <div class="row"><span>Wages (box 1)</span><b>$44,629.35</b></div>
+        <div class="row"><span>− Std deduction (Single)</span><b>$15,750.00</b></div>
+        <div class="row"><span>Taxable income</span><b>$28,879.35</b></div>
+        <div class="row"><span>Tax (IRS 2025 Table)</span><b>$3,227</b></div>
+        <div class="row zero"><span>Saver's Credit</span><b>$0</b></div>
+        <div class="row zero"><span>EITC (childless)</span><b>$0</b></div>
+        <div class="row"><span>Withholding</span><b>$7,631.62</b></div>
+        <div class="row big"><span>Refund</span><b>~$4,405</b></div>
+      </div>
+      <div class="evt" id="d-evt"><span class="k">ObservationEvent</span> { type: "session.start" }</div>
+      <div class="hint">Hover a step · each one streams over SSE</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const D={
+  upload:{t:"1 · Upload W-2",d:"The filer drags in a W-2 PDF — or clicks to use the bundled sample so a judge can run the whole flow with zero setup. The file never persists server-side.",evt:'{ type:"input.w2_received", source:"sample" }'},
+  invoke:{t:"2 · FastAPI invokes the graph",d:"FastAPI verifies the signed cookie, hydrates session state, and starts the LangGraph run. The server keeps nothing of its own — state goes back into the cookie.",evt:'{ type:"graph.invoke", node:"intake" }'},
+  extract:{t:"3 · extract_w2",d:"pdfplumber reads native-text PDFs; scans fall back to Claude Vision. Each field carries a confidence score so weak reads get re-confirmed in conversation.",evt:'{ type:"tool.extract_w2", fields:6, min_conf:0.94 }'},
+  validate:{t:"4 · validate",d:"Schema validation plus cross-field sanity checks (e.g. withholding ≤ wages). A dedicated node, outside the LLM, so bad data can't slip through.",evt:'{ type:"node.validate", ok:true, warnings:0 }'},
+  ask:{t:"5 · ≤5 warm questions",d:"Claude asks only what it must — filing status, dependents, and confirmation of any low-confidence figures. A counter increments per question; a conditional graph edge blocks question #6 entirely. The limit is code, not a polite request in the prompt.",evt:'{ type:"agent.question", questions_asked:3, cap:5 }'},
+  compute:{t:"6 · compute_tax",d:"A pure Decimal function applies the cited 2025 params and looks up the exact IRS Tax Table value. Same inputs always yield the same return — never the LLM, which scores ~23–32% on TaxCalcBench.",evt:'{ type:"tool.compute_tax", taxable:28879.35, tax:3227 }'},
+  trace:{t:"7 · TaxResult + trace",d:"The TaxResult carries a line-by-line trace — every 1040 line with its source value — rendered live in the Tax-Trace panel so the math is auditable, not a black box.",evt:'{ type:"result.ready", refund:4405, lines:14 }'},
+  fill:{t:"8 · fill_1040",d:"PyMuPDF writes the TaxResult onto the official IRS 2025 Form 1040, then bakes (flattens) the fields so the output is final and tamper-resistant.",evt:'{ type:"tool.fill_1040", form:"f1040-2025", baked:true }'},
+  download:{t:"9 · Download Form 1040",d:"The filer downloads the actual IRS 2025 Form 1040 — populated, flattened, ready. End to end the run asked ≤5 questions and emitted an event at every step.",evt:'{ type:"session.complete", questions_asked:3 }'},
+};
+function show(k){
+  const x=D[k]; if(!x) return;
+  document.querySelectorAll(".step").forEach(s=>s.classList.toggle("active",s.dataset.key===k));
+  document.getElementById("d-title").textContent=x.t;
+  document.getElementById("d-desc").textContent=x.d;
+  document.getElementById("d-evt").innerHTML='<span class="k">ObservationEvent</span> '+x.evt.replace(/"/g,'"');
+}
+document.querySelectorAll(".step").forEach(s=>{
+  s.setAttribute("tabindex","0");
+  s.addEventListener("mouseenter",()=>show(s.dataset.key));
+  s.addEventListener("focus",()=>show(s.dataset.key));
+  s.addEventListener("click",()=>show(s.dataset.key));
+});
+show("ask");
+</script>
+</body>
+</html>
