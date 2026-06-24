@@ -18,6 +18,7 @@ from fastapi import FastAPI, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from app.agent.graph import AGENT
+from app.extraction import extract_w2, w2_to_dict
 from app.observability.events import ObservationEmitter, ObservationEvent
 from app.sample_w2 import SAMPLE_W2
 from app.session import COOKIE_NAME, SessionState, deserialize, serialize
@@ -81,12 +82,46 @@ async def upload(request: Request, file: UploadFile) -> JSONResponse:
 
     state = deserialize(request.cookies.get(COOKIE_NAME))
     state.w2_source = "upload"
-    # Extraction lands in F-02; for the skeleton use the sample figures so the
-    # end-to-end path (greeting + events) still works after an upload.
-    state.w2_data = dict(SAMPLE_W2)
-    state.w2_data["source"] = "upload"
     state.phase = "intake"
-    response = JSONResponse({"ok": True, "source": "upload"})
+
+    result = extract_w2(blob, file.content_type or "application/pdf")
+    if result.ok and result.w2 is not None:
+        figures = w2_to_dict(result.w2)
+        figures["source"] = result.source
+        state.w2_data = figures
+        # Emit so the live observation panel shows what was extracted and how.
+        emitter = ObservationEmitter()
+        emitter.emit(
+            "tool_call",
+            f"Extracted W-2 via {result.source}: wages={result.w2.wages}, "
+            f"withholding={result.w2.federal_withholding}",
+            ts=time.time(),
+            tool="extract_w2",
+            inputs={"content_type": file.content_type},
+            outputs={
+                "wages": str(result.w2.wages),
+                "federal_withholding": str(result.w2.federal_withholding),
+                "box12_count": len(result.w2.box12),
+                "source": result.source,
+                "confidence": result.confidence,
+            },
+        )
+    else:
+        # Extraction failed; fall back to the sample so the demo never breaks.
+        fallback = dict(SAMPLE_W2)
+        fallback["source"] = "sample_fallback"
+        state.w2_data = fallback
+        emitter = ObservationEmitter()
+        emitter.emit(
+            "validation",
+            f"W-2 extraction failed ({'; '.join(result.errors)}); using sample fallback",
+            ts=time.time(),
+            tool="extract_w2",
+            inputs={"content_type": file.content_type},
+            outputs={"errors": result.errors},
+        )
+
+    response = JSONResponse({"ok": True, "source": state.w2_data.get("source", "upload")})
     _set_session_cookie(response, state)
     return response
 
