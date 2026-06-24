@@ -169,10 +169,12 @@ def parse_filing_status(user_text: str) -> str | None:
     """
     parsed = _structured(
         system=(
-            "Read the user's answer about how they file their taxes and classify "
-            "it. 'single' covers single/unmarried/head-of-household-style answers; "
-            "'mfj' covers married-filing-jointly answers (married, with a spouse, "
-            "filing together). Use 'unknown' only if the answer truly doesn't say."
+            "Classify how the user files their taxes from their answer. Return "
+            "'mfj' if they are married / have a spouse / file jointly / say 'we' "
+            "(e.g. 'married', \"I'm married currently\", 'me and my wife', 'filing "
+            "together'). Return 'single' if they are single / unmarried / on their "
+            "own (e.g. 'single', 'just me', 'never married'). Only return 'unknown' "
+            "when the answer genuinely gives no signal either way (e.g. 'ok', 'sure')."
         ),
         user=f"Their answer: {user_text!r}",
         schema={
@@ -184,14 +186,13 @@ def parse_filing_status(user_text: str) -> str | None:
     )
     if parsed and parsed.get("status") in ("single", "mfj"):
         return parsed["status"]
-    if parsed and parsed.get("status") == "unknown":
-        return None
 
-    # Offline fallback (no API / call failed): obvious keywords only.
+    # Keyword backstop. Runs even when the LLM returned 'unknown' — an obvious
+    # word like "married" should still parse rather than force another re-ask.
     lower = user_text.lower().strip()
-    if any(w in lower for w in ("single", "unmarried", "just me", "alone")):
+    if any(w in lower for w in ("single", "unmarried", "just me", "alone", "never married")):
         return "single"
-    if any(w in lower for w in ("married", "joint", "mfj", "spouse", "together", "we ")):
+    if any(w in lower for w in ("married", "joint", "mfj", "spouse", "wife", "husband", "together", "we ")):
         return "mfj"
     return None
 
@@ -222,11 +223,9 @@ def parse_dependents(user_text: str) -> int | None:
         count = parsed.get("count")
         if isinstance(count, int) and count >= 0:
             return count
-        if count == -1:
-            return None
 
-    # Offline fallback (no API / call failed). A digit wins first; then worded
-    # zeros (checked before "one" so "none" isn't mis-read); then small words.
+    # Keyword/digit backstop. Runs even when the LLM returned -1 — an explicit
+    # number or "three kids" should still parse rather than force a re-ask.
     import re
 
     lower = user_text.lower().strip()
@@ -250,6 +249,7 @@ def present_result(
     owed: str,
     wages: str,
     filing_status: str,
+    credit_note: str = "",
 ) -> str:
     """Ask the LLM to present the tax result warmly.  Tests monkeypatch this."""
     client = get_client()
@@ -262,10 +262,12 @@ def present_result(
         f"The user's 2025 federal tax calculation is complete. "
         f"Wages: {wages}, filing status: {filing_status}. "
         f"Result: {outcome}. "
-        "Present this in 2-3 warm, plain sentences. "
+        f"{credit_note} "
+        "Present this in 2-3 warm, plain sentences. If a credit is noted above, "
+        "mention it briefly and warmly as part of why the result is what it is. "
         "Remind them this is an estimate for educational purposes and they should "
         "use IRS Free File or a professional for the actual submission. "
-        "Do NOT invent any other numbers."
+        "Do NOT invent any numbers beyond the ones given above."
     )
     message = client.messages.create(
         model=MODEL,

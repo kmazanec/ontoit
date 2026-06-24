@@ -167,24 +167,45 @@ def collect_node(state: AgentState) -> dict:
             user_text = content
             break
 
+    # Keys the agent has already put to the user. A question counts the first
+    # time it is asked; asking the *same* key again because the answer was
+    # unparseable is a re-ask and does not count (AC5/AC15).
+    asked: list = list(answers.get("_asked") or [])
+
     # Parse the user's answer if there is one and we have an open question
     if user_text:
         pending_key = _pending_parse_key(answers, messages)
         if pending_key == "filing_status":
             parsed = llm.parse_filing_status(user_text)
             if parsed is None:
-                # Invalid answer — re-ask without incrementing the counter
+                # Couldn't parse. If we have never actually asked filing status,
+                # this turn IS the first ask and counts; otherwise it's a re-ask.
+                first_ask = "filing_status" not in asked
+                if first_ask:
+                    asked.append("filing_status")
+                    questions_asked = budget.increment(questions_asked)
+                    emitter.question_count = questions_asked
+                    emitter.emit(
+                        "question_count",
+                        f"Asked question #{questions_asked}: filing_status",
+                        ts=now(),
+                        phase="collecting",
+                        inputs={"question_key": "filing_status"},
+                        outputs={"questions_asked": questions_asked},
+                    )
+                else:
+                    emitter.emit(
+                        "validation",
+                        f"Unrecognised filing status: {user_text!r} — re-asking",
+                        ts=now(),
+                        phase="collecting",
+                        inputs={"user_text": user_text},
+                    )
                 re_ask = (
                     "I didn't quite catch that — could you let me know if you "
                     "filed as Single or Married Filing Jointly? Either one works!"
                 )
-                emitter.emit(
-                    "validation",
-                    f"Unrecognised filing status: {user_text!r} — re-asking",
-                    ts=now(),
-                    phase="collecting",
-                    inputs={"user_text": user_text},
-                )
+                answers["_asked"] = asked
                 return {
                     "messages": [{"role": "assistant", "content": re_ask}],
                     "phase": "collecting",
@@ -204,18 +225,33 @@ def collect_node(state: AgentState) -> dict:
         elif pending_key == "dependents":
             parsed_deps = llm.parse_dependents(user_text)
             if parsed_deps is None:
+                first_ask = "dependents" not in asked
+                if first_ask:
+                    asked.append("dependents")
+                    questions_asked = budget.increment(questions_asked)
+                    emitter.question_count = questions_asked
+                    emitter.emit(
+                        "question_count",
+                        f"Asked question #{questions_asked}: dependents",
+                        ts=now(),
+                        phase="collecting",
+                        inputs={"question_key": "dependents"},
+                        outputs={"questions_asked": questions_asked},
+                    )
+                else:
+                    emitter.emit(
+                        "validation",
+                        f"Unrecognised dependent count: {user_text!r} — re-asking",
+                        ts=now(),
+                        phase="collecting",
+                        inputs={"user_text": user_text},
+                    )
                 re_ask = (
                     "I'm sorry, I didn't understand that. "
                     "Could you just give me a number — how many qualifying children "
                     "or dependents do you have? Zero is totally fine!"
                 )
-                emitter.emit(
-                    "validation",
-                    f"Unrecognised dependent count: {user_text!r} — re-asking",
-                    ts=now(),
-                    phase="collecting",
-                    inputs={"user_text": user_text},
-                )
+                answers["_asked"] = asked
                 return {
                     "messages": [{"role": "assistant", "content": re_ask}],
                     "phase": "collecting",
@@ -255,6 +291,9 @@ def collect_node(state: AgentState) -> dict:
     wage_hint = _wage_hint(w2_data)
     question_text = llm.ask_question(next_key, prior_summary, wage_hint)
 
+    if next_key not in asked:
+        asked.append(next_key)
+    answers["_asked"] = asked
     questions_asked = budget.increment(questions_asked)
     emitter.question_count = questions_asked
     emitter.emit(
@@ -368,7 +407,20 @@ def compute_node(state: AgentState) -> dict:
     wages_str = f"${result.wages:,.2f}"
     status_label = "Single" if filing_status == "single" else "Married Filing Jointly"
 
-    summary = llm.present_result(refund_str, owed_str, wages_str, status_label)
+    # Note any credits that materially shaped the result, so the warm summary can
+    # explain *why* the refund is what it is (e.g. the EITC their children earned)
+    # rather than reading as if it ignored their answers.
+    credit_notes: list[str] = []
+    if result.eitc:
+        credit_notes.append(f"an Earned Income Tax Credit of ${result.eitc:,.0f}")
+    if result.savers_credit:
+        credit_notes.append(f"a Saver's Credit of ${result.savers_credit:,.0f}")
+    credit_note = ""
+    if credit_notes:
+        kids = f" ({dependents} qualifying child{'ren' if dependents != 1 else ''})" if dependents else ""
+        credit_note = "Their result includes " + " and ".join(credit_notes) + kids + "."
+
+    summary = llm.present_result(refund_str, owed_str, wages_str, status_label, credit_note)
 
     emitter.emit(
         "message",

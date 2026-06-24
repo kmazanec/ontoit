@@ -156,8 +156,8 @@ class TestAC5QuestionBudget:
                 {"role": "assistant", "content": "What is your filing status?"},
                 {"role": "user", "content": "banana"},
             ],
-            answers={},
-            questions_asked=1,  # question was already asked (counter is 1)
+            answers={"_asked": ["filing_status"]},  # already asked (counter is 1)
+            questions_asked=1,
         )
         result = collect_node(state)
         assert result["questions_asked"] == 1  # still 1, not 2
@@ -390,7 +390,7 @@ class TestAC15ValidationRe_ask:
                 {"role": "assistant", "content": "What is your filing status?"},
                 {"role": "user", "content": "unicorn"},
             ],
-            answers={},
+            answers={"_asked": ["filing_status"]},  # already asked -> genuine re-ask
             questions_asked=1,
         )
         result = collect_node(state)
@@ -405,7 +405,7 @@ class TestAC15ValidationRe_ask:
                 {"role": "assistant", "content": "What is your filing status?"},
                 {"role": "user", "content": "banana"},
             ],
-            answers={},
+            answers={"_asked": ["filing_status"]},  # already asked -> genuine re-ask
             questions_asked=1,
         )
         collect_node(state)
@@ -423,7 +423,7 @@ class TestAC15ValidationRe_ask:
                 {"role": "assistant", "content": "How many dependents?"},
                 {"role": "user", "content": "lots"},
             ],
-            answers={"filing_status": "single"},
+            answers={"filing_status": "single", "_asked": ["filing_status", "dependents"]},
             questions_asked=2,
         )
         result = collect_node(state)
@@ -658,3 +658,49 @@ class TestWageHintTypeRobustness:
         }
         result = graph_module.intake_node(state)  # must not raise
         assert result["messages"][0]["content"] == "Hi!"
+
+
+class TestParserKeywordBackstop:
+    """Regression: when the LLM classifier returns 'unknown'/-1 but the answer
+    contains an obvious keyword/number, the keyword backstop must still parse it
+    rather than short-circuit to None (which forced an endless re-ask)."""
+
+    def test_filing_status_keyword_wins_when_llm_unknown(self, monkeypatch):
+        import app.agent.llm as llm
+        monkeypatch.setattr(llm, "_structured", lambda system, user, schema: {"status": "unknown"})
+        assert llm.parse_filing_status("Im married currently") == "mfj"
+        assert llm.parse_filing_status("single, never married") == "single"
+
+    def test_dependents_digit_wins_when_llm_unknown(self, monkeypatch):
+        import app.agent.llm as llm
+        monkeypatch.setattr(llm, "_structured", lambda system, user, schema: {"count": -1})
+        assert llm.parse_dependents("we have three kids") == 3
+        assert llm.parse_dependents("2 dependents") == 2
+        assert llm.parse_dependents("ok") is None  # genuinely no signal
+
+
+class TestFirstAskCounts:
+    """The agent's first ask of a question counts even when prompted by an
+    unparseable opening turn — the bug that showed '1/5' after two questions."""
+
+    def test_first_filing_status_ask_counts_even_on_bad_opener(self, monkeypatch):
+        import app.agent.graph as graph_module
+        from app.observability.events import ObservationEmitter
+
+        # User's opening message can't be parsed as a status, and filing_status
+        # has never been asked -> this turn IS the first ask and must count.
+        monkeypatch.setattr(graph_module.llm, "parse_filing_status", lambda _: None)
+        monkeypatch.setattr(graph_module.llm, "ask_question", lambda *a, **k: "Q?")
+        emitter = ObservationEmitter()
+        state = {
+            "messages": [{"role": "user", "content": "ok"}],
+            "answers": {},  # nothing asked yet
+            "questions_asked": 0,
+            "phase": "collecting",
+            "w2_data": {"wages": "44629.35"},
+            "emitter": emitter,
+            "now": lambda: 0.0,
+        }
+        result = graph_module.collect_node(state)
+        assert result["questions_asked"] == 1  # first ask counted
+        assert "filing_status" in result["answers"]["_asked"]
