@@ -20,8 +20,10 @@ import time
 from pathlib import Path
 from typing import Generator
 
-from fastapi import FastAPI, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from decimal import Decimal
+
+from fastapi import FastAPI, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from app.agent import llm
 from app.agent.budget import budget_exhausted
@@ -35,8 +37,11 @@ from app.agent.graph import (
 )
 from app.extraction import extract_w2, w2_to_dict
 from app.observability.events import ObservationEmitter, ObservationEvent
+from app.pdf.filler import fill_1040
 from app.sample_w2 import SAMPLE_W2
 from app.session import COOKIE_NAME, SessionState, deserialize, serialize
+from app.tax.engine import compute_tax
+from app.tax.types import Answers, Box12Entry, W2
 
 app = FastAPI(title="OntoIt — Agentic Tax-Filing Assistant")
 
@@ -188,7 +193,7 @@ def stream(request: Request) -> StreamingResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /message — multi-turn conversation endpoint (F-04)
+# POST /message — multi-turn conversation endpoint
 # ---------------------------------------------------------------------------
 
 class _MessageRequest:
@@ -306,3 +311,48 @@ async def message(request: Request) -> StreamingResponse:
     response = StreamingResponse(event_source(), media_type="text/event-stream")
     _set_session_cookie(response, state)
     return response
+
+
+# ---------------------------------------------------------------------------
+# GET /download — the completed, baked official 1040 PDF
+# ---------------------------------------------------------------------------
+
+def _session_to_w2_and_answers(state: SessionState) -> tuple[W2, Answers]:
+    """Reconstruct W2 + Answers from session cookie data.
+
+    Raises HTTPException(400) when the session lacks the required fields.
+    """
+    d = state.w2_data
+    if not d:
+        raise HTTPException(status_code=400, detail="No W-2 data in session.")
+
+    box12 = tuple(
+        Box12Entry(str(entry["code"]), Decimal(str(entry["amount"])))
+        for entry in d.get("box12", [])
+    )
+    w2 = W2(
+        wages=Decimal(str(d["wages"])),
+        federal_withholding=Decimal(str(d["federal_withholding"])),
+        box12=box12,
+    )
+
+    answers_data = state.answers or {}
+    filing_status = answers_data.get("filing_status", "single")
+    dependents = int(answers_data.get("dependents", 0))
+    answers = Answers(filing_status=filing_status, dependents=dependents)
+
+    return w2, answers
+
+
+@app.get("/download")
+def download_1040(request: Request) -> Response:
+    """Return a filled, flattened IRS 2025 Form 1040 PDF for the current session."""
+    state = deserialize(request.cookies.get(COOKIE_NAME))
+    w2, answers = _session_to_w2_and_answers(state)
+    result = compute_tax(w2, answers)
+    pdf_bytes = fill_1040(result)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=form-1040-2025.pdf"},
+    )
