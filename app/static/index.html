@@ -18,8 +18,13 @@
   .messages { flex:1; overflow-y:auto; padding:20px; }
   .msg { margin-bottom:14px; max-width:80%; padding:10px 14px; border-radius:12px; line-height:1.45; font-size:14px; }
   .msg.assistant { background:#eef2f7; }
+  .msg.user { background:var(--accent); color:#fff; margin-left:auto; }
   .msg.system { background:transparent; color:var(--muted); font-size:13px; font-style:italic; max-width:100%; padding:4px 0; }
-  .controls { padding:16px 20px; border-top:1px solid var(--line); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .controls { padding:12px 20px; border-top:1px solid var(--line); display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .reply-row { padding:12px 20px; border-top:1px solid var(--line); display:none; gap:8px; align-items:flex-end; }
+  .reply-row textarea { flex:1; font:inherit; font-size:14px; padding:8px 12px; border:1px solid var(--line);
+                        border-radius:8px; resize:none; min-height:40px; max-height:120px; outline:none; }
+  .reply-row textarea:focus { border-color:var(--accent); }
   button { font:inherit; font-size:14px; padding:8px 14px; border:1px solid var(--line); border-radius:8px;
            background:#fff; color:var(--ink); cursor:pointer; }
   button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -51,10 +56,14 @@
     <div class="messages" id="messages">
       <div class="msg system">Upload your W-2 or use the bundled sample to begin.</div>
     </div>
-    <div class="controls">
+    <div class="controls" id="controls">
       <button class="primary" id="sampleBtn">Use the sample W-2</button>
       <input type="file" id="fileInput" accept="application/pdf,image/png,image/jpeg" style="display:none">
       <button id="uploadBtn">Upload a W-2</button>
+    </div>
+    <div class="reply-row" id="replyRow">
+      <textarea id="replyInput" placeholder="Type your answer…" rows="1"></textarea>
+      <button class="primary" id="sendBtn">Send</button>
     </div>
     <div class="note">No real data is stored — your session lives only in a signed cookie in your browser.</div>
   </section>
@@ -72,6 +81,12 @@ const qcount = document.getElementById('qcount');
 const sampleBtn = document.getElementById('sampleBtn');
 const uploadBtn = document.getElementById('uploadBtn');
 const fileInput = document.getElementById('fileInput');
+const controls = document.getElementById('controls');
+const replyRow = document.getElementById('replyRow');
+const replyInput = document.getElementById('replyInput');
+const sendBtn = document.getElementById('sendBtn');
+
+let conversationActive = false;
 
 function addMessage(text, cls) {
   const div = document.createElement('div');
@@ -92,18 +107,96 @@ function addEvent(ev) {
   div.querySelector('.s').textContent = ev.summary;
   trail.appendChild(div);
   trail.scrollTop = trail.scrollHeight;
-  qcount.textContent = ev.question_count;
+  if (ev.question_count !== undefined) qcount.textContent = ev.question_count;
+}
+
+function showReplyBox() {
+  controls.style.display = 'none';
+  replyRow.style.display = 'flex';
+  replyInput.focus();
+}
+
+function hideReplyBox() {
+  replyRow.style.display = 'none';
+}
+
+function setInputEnabled(enabled) {
+  replyInput.disabled = !enabled;
+  sendBtn.disabled = !enabled;
 }
 
 function runStream() {
   const es = new EventSource('/stream');
   es.addEventListener('observation', (e) => addEvent(JSON.parse(e.data)));
-  es.addEventListener('assistant', (e) => addMessage(JSON.parse(e.data).text, 'assistant'));
+  es.addEventListener('assistant', (e) => {
+    const text = JSON.parse(e.data).text;
+    if (text) addMessage(text, 'assistant');
+  });
   es.addEventListener('error', (e) => {
     if (e.data) { try { addMessage(JSON.parse(e.data).summary || 'Error', 'system'); } catch (_) {} }
   });
-  es.addEventListener('done', () => es.close());
+  es.addEventListener('done', () => {
+    es.close();
+    conversationActive = true;
+    showReplyBox();
+    setInputEnabled(true);
+  });
 }
+
+async function sendMessage() {
+  const text = replyInput.value.trim();
+  if (!text) return;
+  replyInput.value = '';
+  addMessage(text, 'user');
+  setInputEnabled(false);
+
+  const resp = await fetch('/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!resp.ok) {
+    addMessage('Something went wrong. Please try again.', 'system');
+    setInputEnabled(true);
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split('\n\n');
+    buf = frames.pop(); // last partial frame
+    for (const frame of frames) {
+      if (!frame.trim()) continue;
+      const eventMatch = frame.match(/^event: (\w+)/m);
+      const dataMatch = frame.match(/^data: (.+)/m);
+      if (!eventMatch || !dataMatch) continue;
+      const evName = eventMatch[1];
+      let data;
+      try { data = JSON.parse(dataMatch[1]); } catch (_) { continue; }
+      if (evName === 'observation') addEvent(data);
+      else if (evName === 'assistant') { if (data.text) addMessage(data.text, 'assistant'); }
+      else if (evName === 'phase') {
+        if (data.phase === 'done') hideReplyBox();
+      }
+      else if (evName === 'done') {
+        setInputEnabled(true);
+        replyInput.focus();
+      }
+    }
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+replyInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
 
 async function loadSample() {
   sampleBtn.disabled = true; uploadBtn.disabled = true;
