@@ -39,3 +39,8 @@ R2 (W-2 upload & extraction), R15 (input validation), R16 (observable). Acceptan
 None (the sample W-2 ships with the repo; the API key is already provisioned in F-01).
 
 ## Implementation notes (filled in by the building agent)
+
+
+## Implementation notes (build outcome)
+
+**Shipped on main, verified locally (2026-06-24).**

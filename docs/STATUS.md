@@ -4,15 +4,15 @@
 
 ## Now
 
-Iteration 01 (walking skeleton) is **built and verified locally**: open the chat, select the bundled sample W-2 (or upload one), and a warm Claude-written greeting streams back with each step shown as a live observation event. FastAPI + SSE + signed-cookie state + the LangGraph graph + the ObservationEvent contract all work end to end against the live API. Next up is iteration 02 (core filing).
+Iterations 01 and 02 are **built and verified locally on main** — the full filer works end to end. A user opens the chat, loads the sample W-2 (or uploads one, really extracted via pdfplumber→Vision), has a warm ≤5-question conversation (answers parsed by Claude with strict JSON output; the question budget + guardrails enforced in code), the return is computed deterministically (sample: $28,879 taxable, $3,226 tax, $4,406 refund, $0 credits), and the user downloads a completed, baked **official IRS 2025 Form 1040** PDF. 88 tests pass. Next up is iteration 03 (deploy + the two stretch features).
 
 ## Iterations
 
 | # | Iteration | Status | Build batch | Notes |
 |---|-----------|--------|-------------|-------|
-| 01 | Skeleton | **Built (local), unmerged on main** | A | F-01 done: graph-state + ObservationEvent + web/cookie/SSE contracts introduced; 7 tests pass; verified end-to-end with a live Claude greeting. Built directly on main per request. |
-| 02 | Core filing | Not started | B | Hard-depends on 01. F-02 (extraction) and F-03 (tax engine) build concurrently; F-04 waits on both; F-05 waits on F-03. |
-| 03 | Deploy & stretch | Not started | C | Hard-depends on the working filer (01–02). Deploy (F-06) + the two committed stretch features. |
+| 01 | Skeleton | **Shipped (local) on main** | A | F-01: graph-state + ObservationEvent + web/cookie/SSE contracts. |
+| 02 | Core filing | **Shipped (local) on main** | B | F-02 extraction, F-03 engine (built in parallel worktrees), F-04 conversation+budget, F-05 filled 1040 PDF. Convergence found + fixed two bugs (lazy session persistence; "none" vs "one" parsing) and moved intent parsing to the LLM. 88 tests; verified end-to-end. |
+| 03 | Deploy & stretch | Not started | C | Hard-depends on the working filer (01–02). Deploy (F-06) + mid-conversation correction (F-07) + tax-trace panel (F-08). |
 
 The three iterations are a genuine linear chain (02 needs 01's shipped plumbing; 03 deploys 01–02), so they build in sequence — no independent-iteration batch to collapse here. The concurrency lives *within* iteration 02 (F-02 ⟂ F-03).
 

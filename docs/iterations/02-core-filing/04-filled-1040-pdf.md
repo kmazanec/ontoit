@@ -39,3 +39,8 @@ R11 (filled official form), R12 (the fill is a real tool action). Acceptance: AC
 - Download the official IRS 2025 `f1040.pdf` and run the field-enumeration script against it to discover current AcroForm field names (names are not published and may change in the 2025 revision; the form embeds an XFA stream).
 
 ## Implementation notes (filled in by the building agent)
+
+
+## Implementation notes (build outcome)
+
+**Shipped on main, verified locally (2026-06-24).**

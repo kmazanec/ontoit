@@ -44,3 +44,8 @@ R4 (5-question budget enforced in code), R5 (essential questions, credits inferr
 None.
 
 ## Implementation notes (filled in by the building agent)
+
+
+## Implementation notes (build outcome)
+
+**Shipped on main, verified locally (2026-06-24).**

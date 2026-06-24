@@ -43,3 +43,8 @@ R6 (core computation), R7 (Saver's Credit), R8 (EITC), R9 (filing-status correct
 - Confirm the 2025 standard-deduction / bracket / Saver's / EITC figures against published IRS 2025 Form 1040 instructions before freezing (research currently high-confidence from primary sources; OBBBA-derived).
 
 ## Implementation notes (filled in by the building agent)
+
+
+## Implementation notes (build outcome)
+
+**Shipped on main, verified locally (2026-06-24).**
