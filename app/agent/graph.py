@@ -73,6 +73,18 @@ def _w2_from_dict(w2_data: dict) -> W2:
     )
 
 
+def _wage_hint(w2_data: dict) -> str | None:
+    """A '$44,629'-style wage hint for the greeting/questions.
+
+    The cookie may hold the wage as a float (sample path) or a string (upload
+    path stores amounts as strings to keep Decimals out of JSON), so coerce to a
+    number before formatting — formatting a str with a numeric code raises."""
+    raw = (w2_data or {}).get("wages")
+    if raw in (None, ""):
+        return None
+    return f"${float(raw):,.0f}"
+
+
 # ---------------------------------------------------------------------------
 # What info is still needed
 # ---------------------------------------------------------------------------
@@ -106,10 +118,7 @@ def intake_node(state: AgentState) -> dict:
         phase="intake",
     )
 
-    wage_hint = None
-    w2 = state.get("w2_data") or {}
-    if w2.get("wages"):
-        wage_hint = f"${w2['wages']:,.0f}"
+    wage_hint = _wage_hint(state.get("w2_data") or {})
 
     greeting = llm.greet(wage_hint=wage_hint)
 
@@ -243,7 +252,7 @@ def collect_node(state: AgentState) -> dict:
         elif next_key == "dependents" and "filing_status" in answers:
             prior_summary = answers["filing_status"]
 
-    wage_hint = f"${w2_data['wages']:,.0f}" if w2_data.get("wages") else None
+    wage_hint = _wage_hint(w2_data)
     question_text = llm.ask_question(next_key, prior_summary, wage_hint)
 
     questions_asked = budget.increment(questions_asked)

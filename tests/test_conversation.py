@@ -619,3 +619,42 @@ class TestHappyPath:
         body = resp.text
         # Should have reached done or computing
         assert "Refund coming!" in body or "phase" in body
+
+
+class TestWageHintTypeRobustness:
+    """Regression: the wage hint must format whether the cookie stored the wage
+    as a float (the sample path) or a string (the upload path stores amounts as
+    strings). Formatting a str with a numeric code raised "Unknown format code
+    'f' for object of type 'str'" and broke the whole upload conversation."""
+
+    def test_wage_hint_handles_float(self):
+        from app.agent.graph import _wage_hint
+        assert _wage_hint({"wages": 44629.35}) == "$44,629"
+
+    def test_wage_hint_handles_string(self):
+        from app.agent.graph import _wage_hint
+        assert _wage_hint({"wages": "44629.35"}) == "$44,629"
+
+    def test_wage_hint_handles_missing(self):
+        from app.agent.graph import _wage_hint
+        assert _wage_hint({}) is None
+        assert _wage_hint({"wages": ""}) is None
+
+    def test_intake_node_does_not_crash_on_string_wages(self, monkeypatch):
+        """The greeting node must run cleanly when w2_data came from upload
+        (string amounts), not just from the sample (float amounts)."""
+        import app.agent.graph as graph_module
+        from app.observability.events import ObservationEmitter
+
+        monkeypatch.setattr(graph_module.llm, "greet", lambda wage_hint=None: "Hi!")
+        emitter = ObservationEmitter()
+        state = {
+            "w2_data": {"wages": "44629.35", "federal_withholding": "7631.62", "box12": []},
+            "answers": {},
+            "questions_asked": 0,
+            "phase": "intake",
+            "emitter": emitter,
+            "now": lambda: 0.0,
+        }
+        result = graph_module.intake_node(state)  # must not raise
+        assert result["messages"][0]["content"] == "Hi!"
