@@ -1,27 +1,21 @@
 """FastAPI app: the web chat, the live observation stream, and signed-cookie
 session state (ADR-009).
-
-Iteration 01 (walking skeleton): serve a minimal chat page with a live
-observation panel; let the user select the bundled sample W-2 (or upload a file,
-stored for later extraction); run the LangGraph agent to produce a warm
-greeting; and stream every observation event to the UI over SSE. Session state
-lives only in a signed cookie — nothing is stored server-side.
-
-Iteration 02 (F-04): adds POST /message for multi-turn conversation.  Each
-call advances the conversation by one step (parse previous answer, ask next
-question, or compute when ready), updates the session cookie, and streams
-the resulting observation events + assistant reply over SSE.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Generator
+from typing import AsyncGenerator, Generator
 
 from decimal import Decimal
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
@@ -43,24 +37,72 @@ from app.session import COOKIE_NAME, SessionState, deserialize, serialize
 from app.tax.engine import compute_tax
 from app.tax.types import Answers, Box12Entry, W2
 
-app = FastAPI(title="OntoIt — Agentic Tax-Filing Assistant")
+_log = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 # Cap uploads so a malicious/oversized file can't exhaust memory (ADR-010).
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
+# ---------------------------------------------------------------------------
+# Secure-cookie detection (ADR-011 operability)
+#
+# Render sets RENDER=true automatically in its environment. The app runs
+# behind Render's TLS-terminating proxy: the browser connection is HTTPS but
+# the app sees plain HTTP — secure=True is still correct because the
+# Set-Cookie travels to the browser only over the already-HTTPS outer
+# connection. Also honour an explicit COOKIE_SECURE env override so any HTTPS
+# host (or local HTTPS reverse-proxy) gets the right behaviour without code
+# changes.
+# ---------------------------------------------------------------------------
+_COOKIE_SECURE: bool = bool(
+    os.environ.get("RENDER") or os.environ.get("COOKIE_SECURE", "")
+)
+
 
 def _set_session_cookie(response, state: SessionState) -> None:
-    """Write the signed session back. HttpOnly/SameSite=Strict always; Secure is
-    set in production (left off for plain-HTTP localhost so the cookie works)."""
+    """Write the signed session back. HttpOnly/SameSite=Strict always; Secure
+    follows _COOKIE_SECURE (true on Render/HTTPS, false for plain-HTTP local)."""
     response.set_cookie(
         COOKIE_NAME,
         serialize(state),
         httponly=True,
         samesite="strict",
-        secure=False,  # set True behind HTTPS in deployment
+        secure=_COOKIE_SECURE,
         max_age=60 * 60,
     )
+
+
+# ---------------------------------------------------------------------------
+# Keep-alive background task (ADR-011 operability)
+#
+# Render free-tier services spin down after ~15 min idle (cold starts take
+# 30-60 s). When KEEP_ALIVE_URL is set to this service's own /health URL the
+# app pings itself every 10 min to prevent spin-down. When the var is unset
+# (local dev, CI) the task is skipped entirely — no noise, no extra deps.
+# ---------------------------------------------------------------------------
+_KEEP_ALIVE_URL: str | None = os.environ.get("KEEP_ALIVE_URL")
+_KEEP_ALIVE_INTERVAL = 10 * 60  # seconds
+
+
+async def _keep_alive_loop() -> None:
+    """Periodically GET KEEP_ALIVE_URL to prevent free-tier spin-down."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        while True:
+            await asyncio.sleep(_KEEP_ALIVE_INTERVAL)
+            try:
+                await client.get(_KEEP_ALIVE_URL)  # type: ignore[arg-type]
+            except Exception as exc:
+                _log.debug("keep-alive ping failed (non-fatal): %s", exc)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    if _KEEP_ALIVE_URL:
+        asyncio.create_task(_keep_alive_loop())
+    yield
+
+
+app = FastAPI(title="OntoIt — Agentic Tax-Filing Assistant", lifespan=_lifespan)
 
 
 @app.get("/health")

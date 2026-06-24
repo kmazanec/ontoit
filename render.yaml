@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ontoit
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # set manually in the Render dashboard; never committed
+      - key: SESSION_SECRET
+        generateValue: true
